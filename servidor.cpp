@@ -49,6 +49,8 @@
 
 #define SERVER_PORT  12345
 
+#define UNUSED(expr) do { (void)(expr); } while (0)
+
 #define TRUE             1
 #define FALSE            0
 
@@ -118,6 +120,8 @@ void nueva_conexion_thread (int new_sd)
    				close_conn = TRUE;
    			}
 
+   			printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
+
    			FD_SET(new_sd,grupos_sets.at(nuevo_mensaje_conexion.grupo));			}
 
 		} catch (const std::out_of_range& oor) {
@@ -151,6 +155,8 @@ int main (int argc, char *argv[])
 {
    int    listen_sd, new_sd;
    int    end_server = FALSE;
+   thread* t;
+   UNUSED(t);
 
    struct sockaddr_in   addr;
    struct timeval       timeout;
@@ -224,7 +230,9 @@ int main (int argc, char *argv[])
             conexión nueva tenga su propio hilo es que, si la segunda llamada a recv() se queda bloqueada porque el
             cliente tarda en responder o no envía información válida, el hilo principal del servidor no se quede colgado
             y pueda aceptar otras conexiones mientras tanto */
-            thread(nueva_conexion_thread, new_sd); 
+
+            printf("Lanzando nuevo hilo...\n");
+            t = new thread(nueva_conexion_thread, new_sd); 
      	}
 
     } while (end_server == FALSE);

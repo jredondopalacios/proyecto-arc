@@ -56,5 +56,17 @@ int main(int argc, const char * argv[])
 		perror("send() error");
 		exit(0);
 	}
+
+	struct mensaje_conexion nueva_conexion;
+	nueva_conexion.grupo = 3;
+
+	rc = send(sock, &nueva_conexion, sizeof(nueva_conexion),0);
+	
+	if(rc < 0)
+	{
+		perror("send() error");
+		exit(0);
+	}
+
 	return 0;
 }
