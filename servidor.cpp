@@ -1,3 +1,37 @@
+/**********************************************************************************************************/
+/*                                                                                                        */
+/*                           ~ Proyecto Arquitectura de Redes de Computadores ~                           */
+/*                                                                                                        */
+/*   Fichero: servidor.cpp                                             Autor: Jorge Redondo Palacios      */
+/*   Licencia: GPL V2                                                                                     */
+/*                                                                                                        */
+/*    ----- Arquitectura del Servidor:                                                                    */
+/*                                                                                                        */
+/*        El servidor desarrollado se trata de un servidor multi-hilo, con sockets bloqueantes con el     */
+/*    objetivo de alcanzar altas prestaciones. Se han hecho varias decisiones de diseño para alcanzar     */
+/*    dicha meta, o al menos conseguir el mayor rendimiento posible.                                      */
+/*                                                                                                        */
+/*        En primer lugar, se ha optado por una arquitectura multi-hilo ya que se ajusta perfectamente    */
+/*    al tipo de sistema a desarrollar. Puesto que los clientes se dividirán en grupos, y nunca inter-    */
+/*    accionarán clientes de distintos grupos, cada hilo puede guardar en local una lista de todos sus    */
+/*    clientes conectados. Aparte de que ningún hilo debería acceder a la lista de miembros de otros      */
+/*    hilos (Es decir, el funcionamiento de un grupo es independiente del de los demás), restringimos     */
+/*    la búsqueda de las IDs, haciendo desaparecer el coste de buscar a qué grupo pertenecia cada pa-     */
+/*    quete entrante (Que tendríamos en una arquitectura de un solo hilo); búsqueda con un coste en ca-   */
+/*    so peor que era lineal con el número total de clientes entre todos los grupos.                      */
+/*                                                                                                        */
+/*        Se ha optado por utilizar sockets bloqueantes, ya que, por la propia naturaleza del sistema,    */
+/*    no se tiene la necesidad de realizar otras tareas mientras esperamos que se envíen o lean datos,    */
+/*    y si se utilizasen sockets no bloqueantes, el SO mantendría constantemente el proceso activo por    */
+/*    culpa del polling producido. En cambio, con los sockets bloqueantes utilizados, el proceso sólo     */
+/*    es despertado cuando termina la operación, permitiendo continuar. Se hubieran podido utilizar       */
+/*    sockets no bloqueantes y paralelizar el reenvío de mensajes a los miembros de un grupo, pero        */
+/*    creemos que con muchos clientes obtendríamos un peor rendimiento por culpa del overhead de lanzar   */
+/*    tantos hilos como clientes de un grupo, y destruirlos a los pocos milisegundos.                     */
+/*                                                                                                        */
+/**********************************************************************************************************/
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
@@ -60,6 +94,12 @@ int main (int argc, char *argv[])
    estos hilos terminen antes */
    vector<thread> grupos_hilos;
 
+   /* Los fd_set de cada grupo serán los que permitirán al hilo principal notificar de nuevas conexiones a los grupos,
+   ya que actualizando cualquiera de estos con FD_SET() provocamos que estos hilos sean notificados en sus bucles select()
+   del momento cuando les lleguen nuevos mensajes del cliente que se ha conectado. Se ha optado por un contendor de tipo
+   map<key,value> por su coste de búsqueda de log(n). Aún no siendo una operación crítica, sí que va a haber más accesos a
+   las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa mantenerlo en un contendeor ordenado y con
+   índice binario para búsqueda */
    map<uint8_t,fd_set*> grupos_sets;
 
    listen_sd = socket(AF_INET, SOCK_STREAM, 0);
