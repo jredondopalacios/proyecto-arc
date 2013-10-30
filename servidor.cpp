@@ -54,21 +54,92 @@
 
 using namespace std;
 
-/* max_sd es la unica variable global, ya que se usará por todos los hilos para
-saber cual es el máximo identificador de socket al iterar sobre la llamada a
- select().   */
-int max_sd;
+/* Almacenaremos todos los hilos creados para los grupos en un vector, para, cuando terminemos, esperar a que
+estos hilos terminen antes */
+vector<thread> grupos_hilos;
+
+/* Los fd_set de cada grupo serán los que permitirán al hilo principal notificar de nuevas conexiones a los grupos,
+ya que actualizando cualquiera de estos con FD_SET() provocamos que estos hilos sean notificados en sus bucles select()
+del momento cuando les lleguen nuevos mensajes del cliente que se ha conectado. Se ha optado por un contendor de tipo
+map<key,value> por su coste de búsqueda de log(n). Aún no siendo una operación crítica, sí que va a haber más accesos a
+las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa mantenerlo en un contendeor ordenado y con
+índice binario para búsqueda */
+map<uint8_t,fd_set*> grupos_sets;
 
 /* grupo_thread es la función que ejecutará cada hilo. Cada hilo se le asgina a un grupo y
 es el único encargado de pasar todos los mensajes de los miembros del grupo, de esta forma
 sólo el hilo es consciente de lo que pasa en cada grupo así de sus miembros conectados, 
 aislando cada hilo las tareas de gestión de mensajes de los grupos. Es la principal herramienta
 para paralelizar las tareas del servidor. */
-void grupo_thread (fd_set* thread_set) {
-	//int contador_ids;
+void grupo_thread (fd_set* thread_set) 
+{
+	//int contador_ids, max_sd;
 	//map<int,int> clientes;
 	//fd_set master_set, working_set;
 	printf("Grupo creado!\n");
+}
+
+void nueva_conexion_thread (int new_sd)
+{
+	printf("Nueva conexión.\n");
+
+    struct mensaje_conexion nuevo_mensaje_conexion;
+    uint8_t tipo_mensaje;
+    int close_conn = FALSE, rc;
+
+    /* Primero leemos un mensaje que nos indicará que tipo de mensaje acaba de enviarnos el cliente */
+    rc = recv(new_sd, &tipo_mensaje, sizeof(tipo_mensaje), 0);
+    if (rc < 0)
+    {
+        perror("recv() failed");
+        close_conn = TRUE;
+    }
+
+    /* Una vez recibido el tipo de mensaje, vamos a leer a qué grupo desea unirse en caso de ser un mensaje de
+    conexión. Usamos un flujo try/catch ya que intentaremos añadir el cliente al set de su grupo. En caso de que
+    el grupo no exista, saltará una excepción, donde crearemos el nuevo grupo */
+		try
+		{
+			// Antes que nada comprobamos que es el mensaje que esperamos. Si no, no haremos nada */
+			if(tipo_mensaje == MENSAJE_CONEXION)
+			{
+				printf("Mensaje de conexión a grupo recibido.\n");
+
+				rc = recv(new_sd, &nuevo_mensaje_conexion, sizeof(mensaje_conexion), 0);
+
+   			if (rc < 0)
+            {
+                perror("recv() failed");
+                close_conn = TRUE;
+            }
+
+   			if(rc == 0)
+   			{
+   				close_conn = TRUE;
+   			}
+
+   			FD_SET(new_sd,grupos_sets.at(nuevo_mensaje_conexion.grupo));			}
+
+		} catch (const std::out_of_range& oor) {
+
+			printf("Grupo no existía. Creando grupo.\n");
+			fd_set new_set;
+			FD_ZERO(&new_set);
+			FD_SET(new_sd, &new_set);
+			grupos_sets.insert(pair<uint8_t,fd_set*>(nuevo_mensaje_conexion.grupo,&new_set));
+			grupos_hilos.push_back(thread(grupo_thread, &new_set));
+		}
+
+    if (rc == 0)
+    {
+       close_conn = TRUE;
+
+    }
+
+    if (close_conn)
+    {
+        close(new_sd);
+    }
 }
 
 /* Función principal del servidor. La función corre sobre el hilo principal, y no realiza ninguna
@@ -78,168 +149,87 @@ de ahora, también escuche los mensajes de este nuevo cliente. Si no existe el g
 entonces se creará un nuevo hilo */
 int main (int argc, char *argv[])
 {
-   int    i, rc;
    int    listen_sd, new_sd;
-   int    desc_ready, end_server = FALSE;
-   int    close_conn;
+   int    end_server = FALSE;
 
    struct sockaddr_in   addr;
    struct timeval       timeout;
    fd_set        master_set, working_set;
 
-   struct mensaje_conexion nuevo_mensaje_conexion;
-   uint8_t tipo_mensaje;
-
-   /* Almacenaremos todos los hilos creados para los grupos en un vector, para, cuando terminemos, esperar a que
-   estos hilos terminen antes */
-   vector<thread> grupos_hilos;
-
-   /* Los fd_set de cada grupo serán los que permitirán al hilo principal notificar de nuevas conexiones a los grupos,
-   ya que actualizando cualquiera de estos con FD_SET() provocamos que estos hilos sean notificados en sus bucles select()
-   del momento cuando les lleguen nuevos mensajes del cliente que se ha conectado. Se ha optado por un contendor de tipo
-   map<key,value> por su coste de búsqueda de log(n). Aún no siendo una operación crítica, sí que va a haber más accesos a
-   las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa mantenerlo en un contendeor ordenado y con
-   índice binario para búsqueda */
-   map<uint8_t,fd_set*> grupos_sets;
-
-   listen_sd = socket(AF_INET, SOCK_STREAM, 0);
+   listen_sd = socket(AF_INET, SOCK_STREAM, 0); // Obtenemos el identificador del socket que está a la escucha
    if (listen_sd < 0)
    {
       perror("socket() failed");
       exit(-1);
    }
 
-   memset(&addr, 0, sizeof(addr));
+   memset(&addr, 0, sizeof(addr)); // Creamos la estructura para ligar el socket al puerto de la capa TCP 
    addr.sin_family      = AF_INET;
    addr.sin_addr.s_addr = htonl(INADDR_ANY);
    addr.sin_port        = htons(SERVER_PORT);
-   rc = bind(listen_sd,
-             (struct sockaddr *)&addr, sizeof(addr));
-   if (rc < 0)
+
+   if (bind(listen_sd,(struct sockaddr *)&addr, sizeof(addr)) < 0)
    {
       perror("bind() failed");
       close(listen_sd);
       exit(-1);
    }
 
-   rc = listen(listen_sd, 256);
-   if (rc < 0)
+   // Finalmente, ponemos el socket a escuchar, con una cola de 256 conexiones 
+   if (listen(listen_sd, 256) < 0)					// en espera
    {
       perror("listen() failed");
       close(listen_sd);
       exit(-1);
    }
 
-   FD_ZERO(&master_set);
-   max_sd = listen_sd;
+   FD_ZERO(&master_set);   // Inicializamos el masters_set con el set de escucha. Esto es imprescindible para
+   						   // despues hacer la llamada al select() y escuchar nuevas conexiones
    FD_SET(listen_sd, &master_set);
 
-   timeout.tv_sec  = 0;
+   timeout.tv_sec  = 0;    // Declaramos un timeout para select() de un milisegundo
    timeout.tv_usec = 1000;
 
+   /* A continuación empieza el bucle principal del servidor, que sólo terminará cuando haya ocurrido algún error.
+   Este bucle corre solamente desde el hilo principal, y será desde este donde se realizará la conexión de nuevos
+   clientes y se añadirán al set de su grupo correspondiente, o se creará un nuevo hilo en caso de no existir este */
    do
    {
+   		/* Copiamos el set principal en otro set temporal. Eso se hace porque select() modifica el set pasado por
+   		parámetros, y si dejamos que modifique el set maestro, el sistema no funcionaría. Cada llamada a select() debe
+   		contar con una copia nueva del set maestro */
         memcpy(&working_set, &master_set, sizeof(master_set));
-        rc = select(max_sd + 1, &working_set, NULL, NULL, &timeout);
 
-        if (rc < 0)
+        if (select(listen_sd + 1, &working_set, NULL, NULL, &timeout) < 0)
         {
-           break;
+        	// Si select() devuelve cero, ha habido un error, y terminamos el bucle principal del servidor
+            break;
         }
 
-        desc_ready = rc;
-
-        for (i=0; i <= max_sd  &&  desc_ready > 0; ++i)
+    	/* Como solo estamos escuchando nuevas conexiones, sólo se necesita comprobar el socket de escucha */
+        if (FD_ISSET(listen_sd, &working_set))
         {
-        if (FD_ISSET(i, &working_set))
-        {
-            desc_ready -= 1;
 
-            if (i == listen_sd)
+        	/* La llamada a accept() devuelve el identificador de socket del nuevo cliente. Antes de 
+        	hacer nada con ella, comprobamos que es positivo. En caso contrario se trata de un error */
+            new_sd = accept(listen_sd, NULL, NULL);
+            if (new_sd < 0)
             {
-                new_sd = accept(listen_sd, NULL, NULL);
-                if (new_sd < 0)
-                {
-                	perror("accept() failed");
-                	end_server = TRUE;
-                }
-
-                printf("Nueva conexión.\n");
-
-                FD_SET(new_sd, &master_set);
-                if (new_sd > max_sd)
-                	max_sd = new_sd;
-            } else {
-
-               close_conn = FALSE;
-
-                rc = recv(i, &tipo_mensaje, sizeof(tipo_mensaje), 0);
-                if (rc < 0)
-                {
-                    perror("recv() failed");
-                    close_conn = TRUE;
-                }
-
-       			try
-           		{
-           			if(tipo_mensaje == MENSAJE_CONEXION)
-           			{
-           				printf("Mensaje de conexión a grupo recibido.\n");
-
-           				rc = recv(i, &nuevo_mensaje_conexion, sizeof(mensaje_conexion), 0);
-
-	           			if (rc < 0)
-		                {
-	                        perror("recv() failed");
-	                        close_conn = TRUE;
-		                }
-
-	           			if(rc == 0)
-	           			{
-	           				close_conn = TRUE;
-	           			}
-
-	           			FD_SET(i,grupos_sets.at(nuevo_mensaje_conexion.grupo));
-	           			FD_CLR(i, &master_set);
-           			}
-
-           		} catch (const std::out_of_range& oor) {
-
-           			printf("Grupo no existía. Creando grupo.\n");
-           			fd_set new_set;
-           			FD_ZERO(&new_set);
-           			FD_SET(i, &new_set);
-           			grupos_sets.insert(pair<uint8_t,fd_set*>(nuevo_mensaje_conexion.grupo,&new_set));
-           			grupos_hilos.push_back(thread(grupo_thread, &new_set));
-           		}
-
-                if (rc == 0)
-                {
-                   close_conn = TRUE;
-
-                }
-
-                if (close_conn)
-                {
-                    close(i);
-                    FD_CLR(i, &master_set);
-                    if (i == max_sd)
-                    {
-                        while (FD_ISSET(max_sd, &master_set) == FALSE)
-                        max_sd -= 1;
-                    }
-                }
+            	perror("accept() failed");
+            	break; // En caso de fallo, cerramos servidor
             }
-         }
-      } 
 
-   } while (end_server == FALSE);
+            /* Cuando una nueva conexión llega al servidor, se lanzará un nuevo hilo que escuchará su mensaje de
+            conexión y la añadirá al set de su grupo o creará un grupo nuevo si es necesario. El objetivo de que cada
+            conexión nueva tenga su propio hilo es que, si la segunda llamada a recv() se queda bloqueada porque el
+            cliente tarda en responder o no envía información válida, el hilo principal del servidor no se quede colgado
+            y pueda aceptar otras conexiones mientras tanto */
+            thread(nueva_conexion_thread, new_sd); 
+     	}
 
-   for (i=0; i <= max_sd; ++i)
-   {
-      if (FD_ISSET(i, &master_set))
-         close(i);
-   }
+    } while (end_server == FALSE);
 
-   return 0;
+    close(listen_sd);
+
+    return 0;
 }
