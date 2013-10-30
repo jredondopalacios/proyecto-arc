@@ -71,6 +71,18 @@ las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa man
 índice binario para búsqueda */
 map<uint8_t,fd_set*> grupos_sets;
 
+inline int recv_tipo_mensaje(int sd) {
+	uint8_t tipo;
+	int rc;
+	rc = recv(sd, &tipo, sizeof(tipo),0);
+	if (rc < 0)
+	{
+		return rc;
+	}
+
+	return tipo;
+}
+
 /* grupo_thread es la función que ejecutará cada hilo. Cada hilo se le asgina a un grupo y
 es el único encargado de pasar todos los mensajes de los miembros del grupo, de esta forma
 sólo el hilo es consciente de lo que pasa en cada grupo así de sus miembros conectados, 
@@ -81,6 +93,7 @@ void grupo_thread (fd_set* thread_set)
 	int  desc_ready, rc, cerrar_hilo = FALSE, max_sd = 0, contador_ids = 0;
 	map<cliente_id,socket_t> clientes;
 	fd_set working_set;
+	uint8_t tipo_mensaje;
 
 	UNUSED(contador_ids);
 	UNUSED(clientes);
@@ -109,6 +122,8 @@ void grupo_thread (fd_set* thread_set)
 			if(FD_ISSET(i,&working_set))
 			{
 				desc_ready -= 1;
+
+				rc = recv(i, &tipo_mensaje, sizeof(tipo_mensaje), 0);
 			}
 		}
 	} while (!cerrar_hilo);
@@ -119,11 +134,10 @@ void nueva_conexion_thread (int new_sd)
 	printf("Nueva conexión.\n");
 
     struct mensaje_conexion nuevo_mensaje_conexion;
-    uint8_t tipo_mensaje;
     int close_conn = FALSE, rc;
 
     /* Primero leemos un mensaje que nos indicará que tipo de mensaje acaba de enviarnos el cliente */
-    rc = recv(new_sd, &tipo_mensaje, sizeof(tipo_mensaje), 0);
+    rc = recv_tipo_mensaje(new_sd);
     if (rc < 0)
     {
         perror("recv() failed");
@@ -136,7 +150,7 @@ void nueva_conexion_thread (int new_sd)
 		try
 		{
 			// Antes que nada comprobamos que es el mensaje que esperamos. Si no, no haremos nada */
-			if(tipo_mensaje == MENSAJE_CONEXION)
+			if(rc == MENSAJE_CONEXION)
 			{
 				printf("Mensaje de conexión a grupo recibido.\n");
 
@@ -268,8 +282,6 @@ int main (int argc, char *argv[])
             conexión nueva tenga su propio hilo es que, si la segunda llamada a recv() se queda bloqueada porque el
             cliente tarda en responder o no envía información válida, el hilo principal del servidor no se quede colgado
             y pueda aceptar otras conexiones mientras tanto */
-
-            printf("Lanzando nuevo hilo...\n");
             t = new thread(nueva_conexion_thread, new_sd); 
      	}
 
