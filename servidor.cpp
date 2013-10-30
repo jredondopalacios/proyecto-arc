@@ -173,46 +173,46 @@ void nueva_conexion_thread (int new_sd)
     /* Una vez recibido el tipo de mensaje, vamos a leer a qué grupo desea unirse en caso de ser un mensaje de
     conexión. Usamos un flujo try/catch ya que intentaremos añadir el cliente al set de su grupo. En caso de que
     el grupo no exista, saltará una excepción, donde crearemos el nuevo grupo */
-		try
+	try
+	{
+		// Antes que nada comprobamos que es el mensaje que esperamos. Si no, no haremos nada */
+		if(rc == MENSAJE_CONEXION)
 		{
-			// Antes que nada comprobamos que es el mensaje que esperamos. Si no, no haremos nada */
-			if(rc == MENSAJE_CONEXION)
-			{
-				printf("Mensaje de conexión a grupo recibido.\n");
+			printf("Mensaje de conexión a grupo recibido.\n");
 
-				// En caso de ser el mensaje esperado, esperamos a que nos envíe la estructura del mensaje
-				rc = recv(new_sd, &nuevo_mensaje_conexion, sizeof(mensaje_conexion), 0);
+			// En caso de ser el mensaje esperado, esperamos a que nos envíe la estructura del mensaje
+			rc = recv(new_sd, &nuevo_mensaje_conexion, sizeof(mensaje_conexion), 0);
 
-	   			if (rc < 0)
-	            {
-	                perror("recv() failed");
-	                close_conn = TRUE;
-	            }
+   			if (rc < 0)
+            {
+                perror("recv() failed");
+                close_conn = TRUE;
+            }
 
-	   			if(rc == 0)
-	   			{
-	   				close_conn = TRUE;
-	   			}
+   			if(rc == 0)
+   			{
+   				close_conn = TRUE;
+   			}
 
-	   			printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
+   			printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
 
-	   			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
+   			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
 
-	   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);		
-	   		}
+   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);		
+   		}
 
-		} catch (const std::out_of_range& oor) {
+	} catch (const std::out_of_range& oor) {
 
-			/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
-			asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
-			cliente. Además añadimos el hilo al vector de hilos de grupos */
-			printf("Grupo no existía. Creando grupo.\n");
-			int new_epoll_fd;
-			new_epoll_fd = epoll_create1(0);
-			grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
-			epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, new_sd, &event);	
-			grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
-		}
+		/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
+		asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
+		cliente. Además añadimos el hilo al vector de hilos de grupos */
+		printf("Grupo no existía. Creando grupo.\n");
+		int new_epoll_fd;
+		new_epoll_fd = epoll_create1(0);
+		grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
+		epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, new_sd, &event);	
+		grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
+	}
 
     if (rc == 0)
     {
@@ -292,7 +292,7 @@ int main (int argc, char *argv[])
 		{
 		    if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) || (!(events[i].events & EPOLLIN)))
 		    {
-		        fprintf (stderr, "epoll error\n");
+		        perror("epoll_wait() error");
 		        continue;
 		    }
 
