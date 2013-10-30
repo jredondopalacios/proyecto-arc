@@ -65,6 +65,7 @@
 
 using namespace std;
 
+// Definimos un typedef de int para, en el map<int,int>, tener más claro qué significa la clave y qué el valor
 typedef int socket_t;
 typedef int cliente_id;
 
@@ -233,13 +234,10 @@ entonces se creará un nuevo hilo */
 int main (int argc, char *argv[])
 {
    int    listen_sd, new_sd;
-   int    end_server = FALSE;
    thread* t;
    UNUSED(t);
 
    struct sockaddr_in   addr;
-   struct timeval       timeout;
-   fd_set        master_set, working_set;
 
    listen_sd = socket(AF_INET, SOCK_STREAM, 0); // Obtenemos el identificador del socket que está a la escucha
    if (listen_sd < 0)
@@ -268,40 +266,41 @@ int main (int argc, char *argv[])
       exit(-1);
    }
 
-   FD_ZERO(&master_set);   // Inicializamos el masters_set con el set de escucha. Esto es imprescindible para
-   						   // despues hacer la llamada al select() y escuchar nuevas conexiones
-   FD_SET(listen_sd, &master_set);
+   int epoll_fd;
+   struct epoll_event event;
+   struct epoll_event *events;
 
-   timeout.tv_sec  = 0;    // Declaramos un timeout para select() de un milisegundo
-   timeout.tv_usec = 1000;
+   epoll_fd = epoll_create1(0);
+
+   event.data.fd = listen_sd;
+   event.events = EPOLLIN;
+
+   events = (epoll_event*) calloc (MAXEVENTS, sizeof(event));
+
+   epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sd, &event);
+
+   int epoll_n;
 
    /* A continuación empieza el bucle principal del servidor, que sólo terminará cuando haya ocurrido algún error.
    Este bucle corre solamente desde el hilo principal, y será desde este donde se realizará la conexión de nuevos
    clientes y se añadirán al set de su grupo correspondiente, o se creará un nuevo hilo en caso de no existir este */
    do
    {
-   		/* Copiamos el set principal en otro set temporal. Eso se hace porque select() modifica el set pasado por
-   		parámetros, y si dejamos que modifique el set maestro, el sistema no funcionaría. Cada llamada a select() debe
-   		contar con una copia nueva del set maestro */
-        memcpy(&working_set, &master_set, sizeof(master_set));
+   		epoll_n = epoll_wait(epoll_fd, events, MAXEVENTS, -1);
 
-        if (select(listen_sd + 1, &working_set, NULL, NULL, &timeout) < 0)
-        {
-        	// Si select() devuelve cero, ha habido un error, y terminamos el bucle principal del servidor
-            break;
-        }
+		for (int i = 0; i < epoll_n; i++)
+		{
+		    if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) || (!(events[i].events & EPOLLIN)))
+		    {
+		        fprintf (stderr, "epoll error\n");
+		        continue;
+		    }
 
-    	/* Como solo estamos escuchando nuevas conexiones, sólo se necesita comprobar el socket de escucha */
-        if (FD_ISSET(listen_sd, &working_set))
-        {
-
-        	/* La llamada a accept() devuelve el identificador de socket del nuevo cliente. Antes de 
-        	hacer nada con ella, comprobamos que es positivo. En caso contrario se trata de un error */
-            new_sd = accept(listen_sd, NULL, NULL);
+		    new_sd = accept(listen_sd, NULL, NULL);
             if (new_sd < 0)
             {
             	perror("accept() failed");
-            	break; // En caso de fallo, cerramos servidor
+            	continue; // En caso de fallo, cerramos servidor
             }
 
             /* Cuando una nueva conexión llega al servidor, se lanzará un nuevo hilo que escuchará su mensaje de
@@ -310,9 +309,8 @@ int main (int argc, char *argv[])
             cliente tarda en responder o no envía información válida, el hilo principal del servidor no se quede colgado
             y pueda aceptar otras conexiones mientras tanto */
             t = new thread(nueva_conexion_thread, new_sd); 
-     	}
-
-    } while (end_server == FALSE);
+		}
+    } while (TRUE);
 
     close(listen_sd);
 
