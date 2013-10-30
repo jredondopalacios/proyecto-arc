@@ -37,6 +37,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/epoll.h>
 #include <netinet/in.h>
 #include <errno.h>
 #include <thread>
@@ -48,6 +49,7 @@
 #include "mensajes.h"
 
 #define SERVER_PORT  12345
+#define MAXEVENTS	    20
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
 
@@ -69,7 +71,7 @@ del momento cuando les lleguen nuevos mensajes del cliente que se ha conectado. 
 map<key,value> por su coste de búsqueda de log(n). Aún no siendo una operación crítica, sí que va a haber más accesos a
 las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa mantenerlo en un contendeor ordenado y con
 índice binario para búsqueda */
-map<uint8_t,fd_set*> grupos_sets;
+map<uint8_t,int> grupos_sets;
 
 inline int recv_tipo_mensaje(int sd) {
 	uint8_t tipo;
@@ -79,6 +81,10 @@ inline int recv_tipo_mensaje(int sd) {
 	{
 		return rc;
 	}
+	if (rc == 0) 
+	{
+		return 0;
+	}
 	return tipo;
 }
 
@@ -87,12 +93,12 @@ es el único encargado de pasar todos los mensajes de los miembros del grupo, de
 sólo el hilo es consciente de lo que pasa en cada grupo así de sus miembros conectados, 
 aislando cada hilo las tareas de gestión de mensajes de los grupos. Es la principal herramienta
 para paralelizar las tareas del servidor. */
-void grupo_thread (fd_set* thread_set) 
+void grupo_thread (int epoll_thread_fd) 
 {
-	int  desc_ready, rc, cerrar_hilo = FALSE, max_sd = 0, contador_ids = 0;
+	int  desc_ready, rc, cerrar_hilo = FALSE, contador_ids = 0;
 	map<cliente_id,socket_t> clientes;
-	fd_set working_set;
-	uint8_t tipo_mensaje;
+	struct epoll_event *events;
+	events = (epoll_event*) calloc(MAXEVENTS, sizeof(events));
 	struct mensaje_saludo saludo;
 
 	UNUSED(contador_ids);
@@ -100,44 +106,39 @@ void grupo_thread (fd_set* thread_set)
 
 	printf("Grupo creado!\n");
 
-	struct timeval  timeout;
-	timeout.tv_sec  = 0;    // Declaramos un timeout para select() de un milisegundo
-    timeout.tv_usec = 1000;
 
 	do {
-		memcpy(&working_set, thread_set, sizeof(*thread_set));
 
-		rc = select(max_sd + 1, &working_set, NULL, NULL, &timeout);
+		desc_ready = epoll_wait(epoll_thread_fd, events, MAXEVENTS, -1);
 
-		if(rc < 0)
+		if(desc_ready < 0)
 		{
 			perror("select() error");
 			return;
 		}
 
-		desc_ready = rc;
-
-		for(int i = 0; i <= max_sd; i++)
+		for(int i = 0; i < desc_ready; i++)
 		{
-			if(FD_ISSET(i,&working_set))
-			{
-				desc_ready -= 1;
+			int socket = events[i].data.fd;
 
-				switch (recv_tipo_mensaje(i))
+			switch (recv_tipo_mensaje(socket))
+			{
+			case MENSAJE_DESCONEXION:
+				printf("Se ha desconectado un cliente. Socket: %d\n", socket);
+				close(socket);
+				break;
+			case MENSAJE_SALUDO:
+				printf("Mensaje de saludo recibido.\n");
+				rc = recv(socket, &saludo, sizeof(saludo), 0);
+				if(rc < 0)
 				{
-				case MENSAJE_SALUDO:
-					printf("Mensaje de saludo recibido.\n");
-					rc = recv(i, &saludo, sizeof(saludo), 0);
-					if(rc < 0)
-					{
-						perror("recv() error");
-						break;
-					}
-					printf("Se ha conectado %s\n", saludo.nombre);
+					perror("recv() error");
 					break;
-				default:
-					printf("Mensaje no reconocido. Identificador de socket: %d\n", i);
 				}
+				printf("Se ha conectado %s\n", saludo.nombre);
+				break;
+			default:
+				printf("Mensaje no reconocido. Identificador de socket: %d\n", socket);
 			}
 		}
 	} while (!cerrar_hilo);
@@ -149,6 +150,10 @@ void nueva_conexion_thread (int new_sd)
 
     struct mensaje_conexion nuevo_mensaje_conexion;
     int close_conn = FALSE, rc;
+    epoll_event event;
+
+    event.data.fd = new_sd;
+	event.events = EPOLLIN;
 
     /* Primero leemos un mensaje que nos indicará que tipo de mensaje acaba de enviarnos el cliente */
     rc = recv_tipo_mensaje(new_sd);
@@ -185,7 +190,9 @@ void nueva_conexion_thread (int new_sd)
 	   			printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
 
 	   			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
-	   			FD_SET(new_sd,grupos_sets.at(nuevo_mensaje_conexion.grupo));			}
+
+	   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);		
+	   		}
 
 		} catch (const std::out_of_range& oor) {
 
@@ -193,11 +200,11 @@ void nueva_conexion_thread (int new_sd)
 			asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
 			cliente. Además añadimos el hilo al vector de hilos de grupos */
 			printf("Grupo no existía. Creando grupo.\n");
-			fd_set new_set;
-			FD_ZERO(&new_set);
-			FD_SET(new_sd, &new_set);
-			grupos_sets.insert(pair<uint8_t,fd_set*>(nuevo_mensaje_conexion.grupo,&new_set));
-			grupos_hilos.push_back(thread(grupo_thread, &new_set));
+			int new_epoll_fd;
+			new_epoll_fd = epoll_create1(0);
+			grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
+			epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, new_sd, &event);	
+			grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
 		}
 
     if (rc == 0)

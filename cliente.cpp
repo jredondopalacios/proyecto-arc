@@ -50,14 +50,7 @@ int main(int argc, const char * argv[])
 	}
 
 	uint8_t tipo_mensaje = MENSAJE_CONEXION;
-	//rc = send(sock,&tipo_mensaje, sizeof(tipo_mensaje), 0);
 	buffer[0] = tipo_mensaje;
-
-	/*if(rc < 0)
-	{
-		perror("send() error");
-		exit(0);
-	}*/
 
 	struct mensaje_conexion nueva_conexion;
 	nueva_conexion.grupo = 3;
@@ -71,6 +64,23 @@ int main(int argc, const char * argv[])
 		perror("send() error");
 		exit(0);
 	}
+
+	struct mensaje_saludo nuevo_saludo;
+	string s = "Jordi";
+	strcpy(nuevo_saludo.nombre, s.c_str());
+	tipo_mensaje = MENSAJE_SALUDO;
+	buffer[0] = tipo_mensaje;
+	memcpy(&buffer[1], &nuevo_saludo, sizeof(nuevo_saludo));
+
+	rc = send(sock, buffer, sizeof(nuevo_saludo) + sizeof(uint8_t),0);
+	
+	if(rc < 0)
+	{
+		perror("send() error");
+		exit(0);
+	}
+
+	sleep(10);
 
 	return 0;
 }
