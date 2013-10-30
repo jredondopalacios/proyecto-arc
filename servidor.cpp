@@ -56,6 +56,9 @@
 
 using namespace std;
 
+typedef int socket_t;
+typedef int cliente_id;
+
 /* Almacenaremos todos los hilos creados para los grupos en un vector, para, cuando terminemos, esperar a que
 estos hilos terminen antes */
 vector<thread> grupos_hilos;
@@ -75,10 +78,40 @@ aislando cada hilo las tareas de gestión de mensajes de los grupos. Es la princ
 para paralelizar las tareas del servidor. */
 void grupo_thread (fd_set* thread_set) 
 {
-	//int contador_ids, max_sd;
-	//map<int,int> clientes;
-	//fd_set master_set, working_set;
+	int  desc_ready, rc, cerrar_hilo = FALSE, max_sd = 0, contador_ids = 0;
+	map<cliente_id,socket_t> clientes;
+	fd_set working_set;
+
+	UNUSED(contador_ids);
+	UNUSED(clientes);
+
 	printf("Grupo creado!\n");
+
+	struct timeval  timeout;
+	timeout.tv_sec  = 0;    // Declaramos un timeout para select() de un milisegundo
+    timeout.tv_usec = 1000;
+
+	do {
+		memcpy(&working_set, thread_set, sizeof(*thread_set));
+
+		rc = select(max_sd + 1, &working_set, NULL, NULL, &timeout);
+
+		if(rc < 0)
+		{
+			perror("select() error");
+			return;
+		}
+
+		desc_ready = rc;
+
+		for(int i = 0; i <= max_sd; i++)
+		{
+			if(FD_ISSET(i,&working_set))
+			{
+				desc_ready -= 1;
+			}
+		}
+	} while (!cerrar_hilo);
 }
 
 void nueva_conexion_thread (int new_sd)
@@ -107,25 +140,30 @@ void nueva_conexion_thread (int new_sd)
 			{
 				printf("Mensaje de conexión a grupo recibido.\n");
 
+				// En caso de ser el mensaje esperado, esperamos a que nos envíe la estructura del mensaje
 				rc = recv(new_sd, &nuevo_mensaje_conexion, sizeof(mensaje_conexion), 0);
 
-   			if (rc < 0)
-            {
-                perror("recv() failed");
-                close_conn = TRUE;
-            }
+	   			if (rc < 0)
+	            {
+	                perror("recv() failed");
+	                close_conn = TRUE;
+	            }
 
-   			if(rc == 0)
-   			{
-   				close_conn = TRUE;
-   			}
+	   			if(rc == 0)
+	   			{
+	   				close_conn = TRUE;
+	   			}
 
-   			printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
+	   			printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
 
-   			FD_SET(new_sd,grupos_sets.at(nuevo_mensaje_conexion.grupo));			}
+	   			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
+	   			FD_SET(new_sd,grupos_sets.at(nuevo_mensaje_conexion.grupo));			}
 
 		} catch (const std::out_of_range& oor) {
 
+			/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
+			asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
+			cliente. Además añadimos el hilo al vector de hilos de grupos */
 			printf("Grupo no existía. Creando grupo.\n");
 			fd_set new_set;
 			FD_ZERO(&new_set);
