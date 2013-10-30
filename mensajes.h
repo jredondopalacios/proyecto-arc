@@ -1,5 +1,5 @@
 #define MENSAJE_CONEXION 0
 
-struct msg_conexion {
-	char* grupo[10];
+struct mensaje_conexion {
+	uint8_t grupo;
 };
