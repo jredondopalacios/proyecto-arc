@@ -4,3 +4,7 @@
 struct mensaje_conexion {
 	uint8_t grupo;
 };
+
+struct mensaje_saludo {
+	char* nombre[20];
+};

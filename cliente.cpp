@@ -31,6 +31,7 @@ int main(int argc, const char * argv[])
 
     int                     sock, rc;
     struct sockaddr_in      dir;
+    uint8_t                 buffer[200];
 
 	if ((sock=socket(PF_INET, SOCK_STREAM, 0))<0)
 	{
@@ -49,18 +50,21 @@ int main(int argc, const char * argv[])
 	}
 
 	uint8_t tipo_mensaje = MENSAJE_CONEXION;
-	rc = send(sock,&tipo_mensaje, sizeof(tipo_mensaje), 0);
+	//rc = send(sock,&tipo_mensaje, sizeof(tipo_mensaje), 0);
+	buffer[0] = tipo_mensaje;
 
-	if(rc < 0)
+	/*if(rc < 0)
 	{
 		perror("send() error");
 		exit(0);
-	}
+	}*/
 
 	struct mensaje_conexion nueva_conexion;
 	nueva_conexion.grupo = 3;
 
-	rc = send(sock, &nueva_conexion, sizeof(nueva_conexion),0);
+	memcpy(&buffer[1], &nueva_conexion, sizeof(nueva_conexion));
+
+	rc = send(sock, buffer, sizeof(nueva_conexion) + sizeof(uint8_t),0);
 	
 	if(rc < 0)
 	{

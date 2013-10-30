@@ -79,7 +79,6 @@ inline int recv_tipo_mensaje(int sd) {
 	{
 		return rc;
 	}
-
 	return tipo;
 }
 
@@ -94,6 +93,7 @@ void grupo_thread (fd_set* thread_set)
 	map<cliente_id,socket_t> clientes;
 	fd_set working_set;
 	uint8_t tipo_mensaje;
+	struct mensaje_saludo saludo;
 
 	UNUSED(contador_ids);
 	UNUSED(clientes);
@@ -123,7 +123,21 @@ void grupo_thread (fd_set* thread_set)
 			{
 				desc_ready -= 1;
 
-				rc = recv(i, &tipo_mensaje, sizeof(tipo_mensaje), 0);
+				switch (recv_tipo_mensaje(i))
+				{
+				case MENSAJE_SALUDO:
+					printf("Mensaje de saludo recibido.\n");
+					rc = recv(i, &saludo, sizeof(saludo), 0);
+					if(rc < 0)
+					{
+						perror("recv() error");
+						break;
+					}
+					printf("Se ha conectado %s\n", saludo.nombre);
+					break;
+				default:
+					printf("Mensaje no reconocido. Identificador de socket: %d\n", i);
+				}
 			}
 		}
 	} while (!cerrar_hilo);
