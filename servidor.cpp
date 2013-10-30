@@ -29,6 +29,13 @@
 /*    creemos que con muchos clientes obtendríamos un peor rendimiento por culpa del overhead de lanzar   */
 /*    tantos hilos como clientes de un grupo, y destruirlos a los pocos milisegundos.                     */
 /*                                                                                                        */
+/*		  Además se ha abandonado el uso de la sentencia select() debido a su bajo rendimiento y escala-  */
+/*	  bilidad. En su lugar utilizamos epoll, un sistema sólo de Linux presente desde la versión del       */
+/*	  kernel 2.6. epoll no sólo elimina el límite que tenía select() en cuanto a total de descriptores,   */
+/*	  sino que además el coste de select() era lineal con el número de descriptores a comprobar, mientras */
+/*	  que el de epoll es lineal. Esto provoca que la aplicación sea mucho más escalable, más eficiente,   */
+/*	  y soporte más clientes.                                                                             */
+/*                                                                                                        */
 /**********************************************************************************************************/
 
 
@@ -65,9 +72,8 @@ typedef int cliente_id;
 estos hilos terminen antes */
 vector<thread> grupos_hilos;
 
-/* Los fd_set de cada grupo serán los que permitirán al hilo principal notificar de nuevas conexiones a los grupos,
-ya que actualizando cualquiera de estos con FD_SET() provocamos que estos hilos sean notificados en sus bucles select()
-del momento cuando les lleguen nuevos mensajes del cliente que se ha conectado. Se ha optado por un contendor de tipo
+/* Los descriptores de fichero de epoll permitirán al hilo principal actualizarlos cuando entre nuevas conexiones que
+se unan a los grupos Este descriptor se le pasará al hilo para que espere sobre él. Se ha optado por un contendor de tipo
 map<key,value> por su coste de búsqueda de log(n). Aún no siendo una operación crítica, sí que va a haber más accesos a
 las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa mantenerlo en un contendeor ordenado y con
 índice binario para búsqueda */
