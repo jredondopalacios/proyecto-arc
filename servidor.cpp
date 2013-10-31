@@ -158,6 +158,7 @@ void nueva_conexion_thread (int new_sd)
     struct mensaje_conexion nuevo_mensaje_conexion;
     int close_conn = FALSE, rc;
     epoll_event event;
+    static uint8_t tipo_aux = MENSAJE_CONEXION_SATISFACTORIA;
 
     event.data.fd = new_sd;
 	event.events = EPOLLIN;
@@ -198,8 +199,8 @@ void nueva_conexion_thread (int new_sd)
 
    			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
 
-   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);	
-   			send(new_sd, &new_sd, sizeof(int),0);	
+   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);
+   			send(new_sd, &tipo_aux, sizeof(tipo_aux),0);	
    		}
 
 	} catch (const std::out_of_range& oor) {
@@ -213,7 +214,7 @@ void nueva_conexion_thread (int new_sd)
 		grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
 		grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
 		epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, new_sd, &event);
-		send(new_sd, &new_epoll_fd, sizeof(int),0);
+		send(new_sd, &tipo_aux, sizeof(tipo_aux),0);
 	}
 
     if (rc == 0)
