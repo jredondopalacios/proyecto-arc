@@ -198,7 +198,8 @@ void nueva_conexion_thread (int new_sd)
 
    			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
 
-   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);		
+   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);	
+   			send(new_sd, &new_sd, sizeof(int),0);	
    		}
 
 	} catch (const std::out_of_range& oor) {
@@ -210,8 +211,9 @@ void nueva_conexion_thread (int new_sd)
 		int new_epoll_fd;
 		new_epoll_fd = epoll_create1(0);
 		grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
-		epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, new_sd, &event);	
 		grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
+		epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, new_sd, &event);
+		send(new_sd, &new_epoll_fd, sizeof(int),0);
 	}
 
     if (rc == 0)

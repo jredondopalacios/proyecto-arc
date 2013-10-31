@@ -65,6 +65,8 @@ int main(int argc, const char * argv[])
 		exit(0);
 	}
 
+	rc = recv(sock, buffer, sizeof(int), 0);
+
 	struct mensaje_saludo nuevo_saludo;
 	string s = "Jordi";
 	strcpy(nuevo_saludo.nombre, s.c_str());
