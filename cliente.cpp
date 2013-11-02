@@ -115,14 +115,24 @@ int main(int argc, const char * argv[])
 	miPosicion.posicion_y = 150;
 	miPosicion.posicion_z = -200;
 
-	int64_t ticker = time_ms();
+	int64_t ticker = 0;
 
 	FD_ZERO(&fd);
 	FD_SET(sock, &fd);
 	int n;
-	struct timeval          timeout;
+	struct timeval  timeout;
 	timeout.tv_sec = 0;
     timeout.tv_usec = 1000;
+
+    struct cliente_info {
+    	_cliente_id id;
+    	char nombre[NOMBRE_MAX_CHAR];
+    	int16_t posicion_x;
+		int16_t posicion_y;
+		int16_t posicion_z;
+    };
+
+    vector<cliente_info> clientes_conocidos, clientes_copia;
 
 	while(1)
 	{
@@ -136,6 +146,7 @@ int main(int argc, const char * argv[])
 			memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
 			send(sock, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
 			ticker = time_ms();
+			clientes_copia = clientes_conocidos;
 		}
 
 		if(n > 0)
@@ -144,6 +155,7 @@ int main(int argc, const char * argv[])
 			{
 				_tipo_mensaje tipo;
 				recv(sock, &tipo, sizeof(tipo), 0);
+				bool encontrado;
 				switch(tipo)
 				{
 					case MENSAJE_POSICION:
@@ -156,17 +168,68 @@ int main(int argc, const char * argv[])
 						reconocimiento.numero_secuencia = posicion.numero_secuencia;
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
 						send(sock, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
+						encontrado = false;
+						for(uint j=0; j < clientes_conocidos.size(); j++)
+						{
+							if(clientes_conocidos[j].id == posicion.cliente_id_origen)
+							{
+								encontrado = true;
+								clientes_conocidos[j].posicion_x = posicion.posicion_x;
+								clientes_conocidos[j].posicion_y = posicion.posicion_y;
+								clientes_conocidos[j].posicion_z = posicion.posicion_z;
+								break;
+							}
+						}
+						if(!encontrado){
+							buffer[0] = MENSAJE_NOMBRE_REQUEST;
+							nombre_request.cliente_id_origen = cliente_id;
+							nombre_request.cliente_id_destino = posicion.cliente_id_origen;
+							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
+							send(sock, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+						}
 						break;
 					case MENSAJE_RECONOCIMIENTO:
 						printf("Recibido mensaje de reconocimiento.\n");
 						recv(sock, &reconocimiento, sizeof(reconocimiento), 0);
+						encontrado = false;
 						if(reconocimiento.numero_secuencia == secuencia)
 						{
-							printf("Reconocimiento del último mensaje de posición.\n");
+							for(uint j=0; j < clientes_copia.size(); j++)
+							{
+								if(clientes_copia[j].id == reconocimiento.cliente_id_origen)
+								{
+									encontrado = true;
+									clientes_copia.erase(clientes_copia.begin() + j);
+									break;
+								}
+							}
+						}
+						if(!encontrado){
+							buffer[0] = MENSAJE_NOMBRE_REQUEST;
+							nombre_request.cliente_id_origen = cliente_id;
+							nombre_request.cliente_id_destino = reconocimiento.cliente_id_origen;
+							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
+							send(sock, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
 						}
 						break;
 					case MENSAJE_SALUDO:
 						printf("Se ha conectado un nuevo miembro.\n");
+						break;
+					case MENSAJE_NOMBRE_REQUEST:
+						recv(sock, &nombre_request, sizeof(nombre_request),0);
+						buffer[0] = MENSAJE_NOMBRE_REPLY;
+						nombre_reply.cliente_id_origen = cliente_id;
+						nombre_reply.cliente_id_destino = nombre_request.cliente_id_origen;
+						strcpy(nombre_reply.nombre, s.c_str());
+						memcpy(&buffer[1], &nombre_reply, sizeof(nombre_reply));
+						send(sock, buffer, sizeof(uint8_t) + sizeof(nombre_reply), 0);
+						break;
+					case MENSAJE_NOMBRE_REPLY:
+						recv(sock, &nombre_reply, sizeof(nombre_reply), 0);
+						struct cliente_info info;
+						info.id = nombre_reply.cliente_id_origen;
+						strcpy(info.nombre, nombre_reply.nombre);
+						clientes_conocidos.push_back(info);
 					default:
 						break;
 				}
