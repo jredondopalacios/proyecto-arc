@@ -70,6 +70,7 @@ int main(int argc, const char * argv[])
 
 
 	printf("Recibidos datos de confirmación del servidor.\n");
+	printf("Mi ID de cliente es: %d\n", buffer[1]);
 
 	struct mensaje_saludo nuevo_saludo;
 	string s = "Jordi";
