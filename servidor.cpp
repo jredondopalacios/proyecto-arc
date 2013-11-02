@@ -163,6 +163,13 @@ void grupo_thread (int epoll_thread_fd)
 					perror("recv() error");
 					break;
 				}
+				
+				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+				memcpy(&buffer[1], &saludo, sizeof(saludo));
+				for(uint j=0; j < clientes.size(); j++) 
+				{
+					send(clientes[j],buffer, sizeof(saludo) + sizeof(tipo_mensaje), 0);
+				}
 				clientes.push_back(socket);
 				printf("Se ha conectado %s\n", saludo.nombre);
 				break;

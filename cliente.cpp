@@ -38,7 +38,8 @@ msec_t time_ms(void)
 int main(int argc, const char * argv[])
 {
 
-    int                     sock, rc, secuencia = 0;
+    int                     sock, rc; 
+    uint32_t secuencia = 0;
     struct sockaddr_in      dir;
     uint8_t                 buffer[200];
     _cliente_id				cliente_id;
@@ -49,7 +50,6 @@ int main(int argc, const char * argv[])
 	struct mensaje_nombre_request 		nombre_request;
 	struct mensaje_nombre_reply 		nombre_reply;
 
-	UNUSED(reconocimiento);
 	UNUSED(nombre_reply);
 	UNUSED(nombre_request);
 
@@ -150,6 +150,25 @@ int main(int argc, const char * argv[])
 						printf("Recibido mensaje de posición.\n");
 						recv(sock, &posicion, sizeof(posicion), 0);
 						printf("Origen ID: %d\n", posicion.cliente_id_origen);
+						buffer[0] = MENSAJE_RECONOCIMIENTO;
+						reconocimiento.cliente_id_origen = cliente_id;
+						reconocimiento.cliente_id_destino = posicion.cliente_id_origen;
+						reconocimiento.numero_secuencia = posicion.numero_secuencia;
+						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
+						send(sock, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
+						break;
+					case MENSAJE_RECONOCIMIENTO:
+						printf("Recibido mensaje de reconocimiento.\n");
+						recv(sock, &reconocimiento, sizeof(reconocimiento), 0);
+						if(reconocimiento.numero_secuencia == secuencia)
+						{
+							printf("Reconocimiento del último mensaje de posición.\n");
+						}
+						break;
+					case MENSAJE_SALUDO:
+						printf("Se ha conectado un nuevo miembro.\n");
+					default:
+						break;
 				}
 			}
 		}
