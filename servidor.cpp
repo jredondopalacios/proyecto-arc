@@ -109,6 +109,8 @@ void grupo_thread (int epoll_thread_fd)
 	struct mensaje_nombre_reply 		nombre_reply;
 	_tipo_mensaje 						tipo_mensaje;
 	vector<_cliente_id>					clientes;
+	uint8_t								buffer[200];
+	ssize_t 							mensaje_size;
 
 	UNUSED(posicion);
 	UNUSED(reconocimiento);
@@ -143,6 +145,13 @@ void grupo_thread (int epoll_thread_fd)
 				printf("Se ha desconectado un cliente. Socket: %d\n", socket);
 				epoll_ctl(epoll_thread_fd, EPOLL_CTL_DEL, socket, NULL);
 				close(socket);
+				for(uint j=0; j < clientes.size(); j++) 
+				{
+					if(clientes[j]==socket)
+					{
+						clientes.erase(clientes.begin() + j);
+					}
+				}
 				continue;
 			}
 
@@ -156,7 +165,66 @@ void grupo_thread (int epoll_thread_fd)
 					perror("recv() error");
 					break;
 				}
+				clientes.push_back(socket);
 				printf("Se ha conectado %s\n", saludo.nombre);
+				break;
+			case MENSAJE_POSICION:
+				rc = recv(socket, &posicion, sizeof(posicion), 0);
+				if(rc < 0)
+				{
+					perror("recv() error");
+					break;
+				}
+				tipo_mensaje = MENSAJE_POSICION;
+				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+				memcpy(&buffer[1], &posicion, sizeof(posicion));
+				mensaje_size = sizeof(tipo_mensaje) + sizeof(posicion);
+				for(uint j=0; j < clientes.size(); j++) 
+				{
+					if(clientes[j]!=socket)
+					{
+						send(clientes[j],buffer, mensaje_size, 0);
+					}
+				}
+				break;
+			case MENSAJE_RECONOCIMIENTO:
+				rc = recv(socket, &reconocimiento, sizeof(reconocimiento), 0);
+				if(rc < 0)
+				{
+					perror("recv() error");
+					break;
+				}
+				tipo_mensaje = MENSAJE_RECONOCIMIENTO;
+				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+				memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
+				mensaje_size = sizeof(tipo_mensaje) + sizeof(reconocimiento);
+				send(reconocimiento.cliente_id_destino, buffer, mensaje_size, 0);
+				break;
+			case MENSAJE_NOMBRE_REQUEST:
+				rc = recv(socket, &nombre_request, sizeof(nombre_request), 0);
+				if(rc < 0)
+				{
+					perror("recv() error");
+					break;
+				}
+				tipo_mensaje = MENSAJE_NOMBRE_REQUEST;
+				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+				memcpy(&buffer[1], &nombre_request, sizeof(nombre_request));
+				mensaje_size = sizeof(tipo_mensaje) + sizeof(nombre_request);
+				send(nombre_request.cliente_id_destino, buffer, mensaje_size, 0);
+				break;
+			case MENSAJE_NOMBRE_REPLY:
+				rc = recv(socket, &nombre_reply, sizeof(nombre_reply), 0);
+				if(rc < 0)
+				{
+					perror("recv() error");
+					break;
+				}
+				tipo_mensaje = MENSAJE_NOMBRE_REPLY;
+				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+				memcpy(&buffer[1], &nombre_reply, sizeof(nombre_reply));
+				mensaje_size = sizeof(tipo_mensaje) + sizeof(nombre_reply);
+				send(nombre_reply.cliente_id_destino, buffer, mensaje_size, 0);
 				break;
 			default:
 				printf("Mensaje no reconocido. Identificador de socket: %d. Mensaje leído: %02X\n", socket, tipo_mensaje);
