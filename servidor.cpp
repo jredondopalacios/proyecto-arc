@@ -52,6 +52,7 @@
 #include <vector>
 #include <string.h>
 #include <unistd.h>
+#include <mutex>
 
 #include "mensajes.h"
 
@@ -68,6 +69,8 @@ using namespace std;
 /* Almacenaremos todos los hilos creados para los grupos en un vector, para, cuando terminemos, esperar a que
 estos hilos terminen antes */
 vector<thread> grupos_hilos;
+
+mutex mtx;
 
 /* Los descriptores de fichero de epoll permitirán al hilo principal actualizarlos cuando entre nuevas conexiones que
 se unan a los grupos Este descriptor se le pasará al hilo para que espere sobre él. Se ha optado por un contendor de tipo
@@ -162,7 +165,7 @@ void grupo_thread (int epoll_thread_fd)
 			switch (tipo_mensaje)
 			{
 			case MENSAJE_SALUDO:
-				printf("Mensaje de saludo recibido.\n");
+				//printf("Mensaje de saludo recibido.\n");
 				rc = recv(socket, &saludo, sizeof(saludo), 0);
 				if(rc < 0)
 				{
@@ -177,10 +180,9 @@ void grupo_thread (int epoll_thread_fd)
 					send(clientes[j],buffer, sizeof(saludo) + sizeof(tipo_mensaje), 0);
 				}
 				clientes.push_back(socket);
-				printf("Se ha conectado %s\n", saludo.nombre);
+				//printf("Se ha conectado %s\n", saludo.nombre);
 				break;
 			case MENSAJE_POSICION:
-				printf("Mensaje de posición recibido.\n");
 				rc = recv(socket, &posicion, sizeof(posicion), 0);
 				if(rc < 0)
 				{
@@ -247,6 +249,7 @@ void grupo_thread (int epoll_thread_fd)
 
 void nueva_conexion_thread (int new_sd)
 {
+	printf("\n--------------------------------------------\n");
 	printf("Nueva conexión.\n");
 
     struct mensaje_conexion 					nuevo_mensaje_conexion;
@@ -265,7 +268,7 @@ void nueva_conexion_thread (int new_sd)
         perror("recv() failed");
         close_conn = TRUE;
     }
-
+    mtx.lock();
     /* Una vez recibido el tipo de mensaje, vamos a leer a qué grupo desea unirse en caso de ser un mensaje de
     conexión. Usamos un flujo try/catch ya que intentaremos añadir el cliente al set de su grupo. En caso de que
     el grupo no exista, saltará una excepción, donde crearemos el nuevo grupo */
@@ -295,7 +298,7 @@ void nueva_conexion_thread (int new_sd)
    			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
 
    			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);
-   				
+   			printf("Miembro añadido satisfactoriamente a grupo.\n");	
    		}
 
 	} catch (const std::out_of_range& oor) {
@@ -303,7 +306,7 @@ void nueva_conexion_thread (int new_sd)
 		/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
 		asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
 		cliente. Además añadimos el hilo al vector de hilos de grupos */
-		printf("Grupo no existía. Creando grupo.\n");
+		printf("Grupo no existía. Creando GRUPO %d.\n", nuevo_mensaje_conexion.grupo);
 		int new_epoll_fd;
 		new_epoll_fd = epoll_create1(0);
 		grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
@@ -328,6 +331,7 @@ void nueva_conexion_thread (int new_sd)
 	conexion_satisfactoria.cliente_id = new_sd;
 	memcpy(&buffer[1], &conexion_satisfactoria, sizeof(mensaje_conexion_satisfactoria));
 	send(new_sd, buffer, sizeof(_tipo_mensaje) + sizeof(mensaje_conexion_satisfactoria),0);
+	mtx.unlock();
 }
 
 /* Función principal del servidor. La función corre sobre el hilo principal, y no realiza ninguna
