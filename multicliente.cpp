@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -22,6 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <sstream>
 
 #include "mensajes.h"
 
@@ -38,7 +40,7 @@ msec_t time_ms(void)
 
 int cliente_thread(int grupo)
 {
-	printf("Conectando cliente a GRUPO %d", grupo);
+	ofstream fichero;
     int                     sock, rc; 
     uint32_t secuencia = 0;
     struct sockaddr_in      dir;
@@ -99,9 +101,16 @@ int cliente_thread(int grupo)
 	strcpy(nuevo_saludo.nombre, s.c_str());
 	tipo_mensaje = MENSAJE_SALUDO;
 	buffer[0] = tipo_mensaje;
+	nuevo_saludo.cliente_id_origen = cliente_id;
 	memcpy(&buffer[1], &nuevo_saludo, sizeof(nuevo_saludo));
 
 	rc = send(sock, buffer, sizeof(nuevo_saludo) + sizeof(uint8_t),0);
+	stringstream ssm;
+
+	ssm << "client-log-" << cliente_id << ".txt";
+
+	fichero.open(ssm.str());
+	
 	
 	if(rc < 0)
 	{
@@ -116,13 +125,13 @@ int cliente_thread(int grupo)
 	miPosicion.posicion_z = -200;
 
 	int64_t ticker = 0;
-	int ciclos = 100;
 	FD_ZERO(&fd);
 	FD_SET(sock, &fd);
 	int n;
 	struct timeval  timeout;
 	timeout.tv_sec = 0;
     timeout.tv_usec = 1000;
+    bool nuevo_ciclo = true;
 
     struct cliente_info {
     	_cliente_id id;
@@ -134,20 +143,24 @@ int cliente_thread(int grupo)
 
     vector<cliente_info> clientes_conocidos, clientes_copia;
 
-	while(ciclos > 0)
+    fichero << "Cliente conectado a GRUPO " << grupo << " con ID " << cliente_id << endl;
+
+	while(secuencia < 100)
 	{
 		memcpy(&fd_copy, &fd, sizeof(fd));
 		n = select(sock + 1, &fd_copy, NULL, NULL, &timeout);
 
-		if((time_ms() - ticker) > 1000)
+		if(nuevo_ciclo)
 		{
+			fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
 			buffer[0] = MENSAJE_POSICION;
 			miPosicion.numero_secuencia = ++secuencia;
 			memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
 			send(sock, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
 			ticker = time_ms();
 			clientes_copia = clientes_conocidos;
-			ciclos--;
+			nuevo_ciclo = false;
+			fichero << "Se necesitan encontrar " << clientes_copia.size() << " ACKs coincidentes para siguiente ciclo." << endl;
 		}
 
 		if(n > 0)
@@ -158,6 +171,7 @@ int cliente_thread(int grupo)
 				recv(sock, &tipo, sizeof(tipo), 0);
 				bool encontrado;
 				struct cliente_info info;
+				//fichero << "Recibido mensaje nuevo. Tipo: " << tipo << endl;
 				switch(tipo)
 				{
 					case MENSAJE_POSICION:
@@ -167,12 +181,14 @@ int cliente_thread(int grupo)
 						reconocimiento.cliente_id_destino = posicion.cliente_id_origen;
 						reconocimiento.numero_secuencia = posicion.numero_secuencia;
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
+						//fichero << "Recibida actualización de posición. Enviando reconocimiento a ID " << posicion.cliente_id_origen << endl;
 						send(sock, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
 						encontrado = false;
 						for(uint j=0; j < clientes_conocidos.size(); j++)
 						{
 							if(clientes_conocidos[j].id == posicion.cliente_id_origen)
 							{
+								//fichero << "Cliente encontrando. Atualizando información." << endl;
 								encontrado = true;
 								clientes_conocidos[j].posicion_x = posicion.posicion_x;
 								clientes_conocidos[j].posicion_y = posicion.posicion_y;
@@ -185,34 +201,30 @@ int cliente_thread(int grupo)
 							nombre_request.cliente_id_origen = cliente_id;
 							nombre_request.cliente_id_destino = posicion.cliente_id_origen;
 							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
+							//fichero << "Enviando petición de información a ID " << posicion.cliente_id_origen << endl;
 							send(sock, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
 						}
 						break;
 					case MENSAJE_RECONOCIMIENTO:
 						recv(sock, &reconocimiento, sizeof(reconocimiento), 0);
-						encontrado = false;
 						if(reconocimiento.numero_secuencia == secuencia)
 						{
 							for(uint j=0; j < clientes_copia.size(); j++)
 							{
+								//fichero << "Se ha encontrado un ACK. Buscando coincidencias...";
 								if(clientes_copia[j].id == reconocimiento.cliente_id_origen)
 								{
-									encontrado = true;
 									clientes_copia.erase(clientes_copia.begin() + j);
+									//fichero << "ACK de cliente en espera encontrado." << endl;
 									break;
 								}
 							}
 						}
-						if(!encontrado){
-							buffer[0] = MENSAJE_NOMBRE_REQUEST;
-							nombre_request.cliente_id_origen = cliente_id;
-							nombre_request.cliente_id_destino = reconocimiento.cliente_id_origen;
-							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
-							send(sock, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
-						}
 						if(clientes_copia.empty())
 						{
-							printf("Ciclo: %d, Latencia: %d", ciclos, time_ms() - ticker);
+							fichero << " >>>>>>>>>>>>>>> Recibidos todos los ACK. Latencia de ciclo: " << time_ms() - ticker << endl;
+							//fichero << "Empezando nuevo ciclo..." << endl;
+							nuevo_ciclo = true;
 						}
 						break;
 					case MENSAJE_SALUDO:
@@ -220,6 +232,8 @@ int cliente_thread(int grupo)
 						info.id = nuevo_saludo.cliente_id_origen;
 						strcpy(info.nombre, nuevo_saludo.nombre);
 						clientes_conocidos.push_back(info);
+						//fichero << "Se ha conectado un nuevo miembro a GRUPO: " << info.id << " con ID: " << info.id << endl;
+						//fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
 						break;
 					case MENSAJE_NOMBRE_REQUEST:
 						recv(sock, &nombre_request, sizeof(nombre_request),0);
@@ -229,12 +243,29 @@ int cliente_thread(int grupo)
 						strcpy(nombre_reply.nombre, s.c_str());
 						memcpy(&buffer[1], &nombre_reply, sizeof(nombre_reply));
 						send(sock, buffer, sizeof(uint8_t) + sizeof(nombre_reply), 0);
+						//fichero << "Cliente ID " << nombre_request.cliente_id_origen << " solicita información." << endl;
 						break;
 					case MENSAJE_NOMBRE_REPLY:
 						recv(sock, &nombre_reply, sizeof(nombre_reply), 0);
 						info.id = nombre_reply.cliente_id_origen;
 						strcpy(info.nombre, nombre_reply.nombre);
-						clientes_conocidos.push_back(info);
+						encontrado = false;
+						for(uint j=0; j < clientes_conocidos.size(); j++)
+						{
+							if(clientes_conocidos[j].id == nombre_reply.cliente_id_origen)
+							{
+								//fichero << "Se ha recibido información de un cliente conocido." << endl;
+								encontrado = true;
+								break;
+							}
+						}						
+						if(!encontrado)
+						{
+							clientes_conocidos.push_back(info);
+							//fichero << "Recibida información de ID: " << info.id << endl;
+							//fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
+						}
+						
 						break;
 					case MENSAJE_DESCONEXION:
 						recv(sock, &desconexion, sizeof(desconexion), 0);
@@ -253,7 +284,7 @@ int cliente_thread(int grupo)
 			}
 		}
 	}
-
+	fichero.close();
 	return 0;
 }
 

@@ -57,7 +57,7 @@
 #include "mensajes.h"
 
 #define SERVER_PORT  12345
-#define MAXEVENTS	    20
+#define MAXEVENTS	 10000
 
 #define TRUE             1
 #define FALSE            0
@@ -114,29 +114,30 @@ void grupo_thread (int epoll_thread_fd)
 	uint8_t								buffer[200];
 	ssize_t 							mensaje_size;
 
-	UNUSED(posicion);
-	UNUSED(reconocimiento);
-	UNUSED(nombre_request);
-	UNUSED(nombre_reply);
-
-	printf("Grupo creado!\n");
-
+	// Este puntero se rellenará con eventos en la llamada a epoll_wait. Antes de llamarlo
+	// hay que alojar memoria para almacenar hasta MAXEVENTS eventos.
 	events = (epoll_event*) calloc(MAXEVENTS, sizeof(events));
 
 	do {
-
+		/* epoll_wait devuelve cuantos descriptores hay disponibles para leer y el puntero de
+		eventos lo rellena con un vector de eventos con los descriptores y las flags asociadas
+		al evento */
 		desc_ready = epoll_wait(epoll_thread_fd, events, MAXEVENTS, -1);
 
 		if(desc_ready < 0)
 		{
-			perror("select() error");
+			perror("epoll_wait() error");
 			return;
 		}
 
 		for(int i = 0; i < desc_ready; i++)
 		{
+			/* Por cada descriptor disponible tenemos una estructura epoll_event lista.
+			Lo único que tenemos que hacer es iterar sobre este vector y obtener el
+			descriptor de socket asociado a cada evento*/
 			socket = events[i].data.fd;
 
+			// Leemos los 8 primeros bits, correspondientes al tipo de mensaje
 			rc = recv(socket, &tipo_mensaje, sizeof(uint8_t),0);
 
 			if(rc < 0)
@@ -249,8 +250,7 @@ void grupo_thread (int epoll_thread_fd)
 
 void nueva_conexion_thread (int new_sd)
 {
-	printf("\n--------------------------------------------\n");
-	printf("Nueva conexión.\n");
+
 
     struct mensaje_conexion 					nuevo_mensaje_conexion;
     struct mensaje_conexion_satisfactoria 		conexion_satisfactoria;
@@ -268,7 +268,9 @@ void nueva_conexion_thread (int new_sd)
         perror("recv() failed");
         close_conn = TRUE;
     }
-    mtx.lock();
+    
+    //printf("\n--------------------------------------------\n");
+	//printf("Nueva conexión.\n");
     /* Una vez recibido el tipo de mensaje, vamos a leer a qué grupo desea unirse en caso de ser un mensaje de
     conexión. Usamos un flujo try/catch ya que intentaremos añadir el cliente al set de su grupo. En caso de que
     el grupo no exista, saltará una excepción, donde crearemos el nuevo grupo */
@@ -277,7 +279,7 @@ void nueva_conexion_thread (int new_sd)
 		// Antes que nada comprobamos que es el mensaje que esperamos. Si no, no haremos nada */
 		if(tipo_mensaje == MENSAJE_CONEXION)
 		{
-			printf("Mensaje de conexión a grupo recibido.\n");
+			//printf("Mensaje de conexión a grupo recibido.\n");
 
 			// En caso de ser el mensaje esperado, esperamos a que nos envíe la estructura del mensaje
 			rc = recv(new_sd, &nuevo_mensaje_conexion, sizeof(mensaje_conexion), 0);
@@ -293,12 +295,12 @@ void nueva_conexion_thread (int new_sd)
    				close_conn = TRUE;
    			}
 
-   			printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
+   			//printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
 
    			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
-
+   			mtx.lock();
    			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);
-   			printf("Miembro añadido satisfactoriamente a grupo.\n");	
+   			//printf("Miembro añadido satisfactoriamente a grupo.\n");	
    		}
 
 	} catch (const std::out_of_range& oor) {
@@ -306,7 +308,7 @@ void nueva_conexion_thread (int new_sd)
 		/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
 		asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
 		cliente. Además añadimos el hilo al vector de hilos de grupos */
-		printf("Grupo no existía. Creando GRUPO %d.\n", nuevo_mensaje_conexion.grupo);
+		//printf("Grupo no existía. Creando GRUPO %d.\n", nuevo_mensaje_conexion.grupo);
 		int new_epoll_fd;
 		new_epoll_fd = epoll_create1(0);
 		grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
