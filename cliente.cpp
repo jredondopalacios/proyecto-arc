@@ -200,6 +200,7 @@ int main(int argc, const char * argv[])
 								{
 									encontrado = true;
 									clientes_copia.erase(clientes_copia.begin() + j);
+									printf("He encontrado un ACK esperado.\n");
 									break;
 								}
 							}
@@ -210,6 +211,10 @@ int main(int argc, const char * argv[])
 							nombre_request.cliente_id_destino = reconocimiento.cliente_id_origen;
 							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
 							send(sock, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+						}
+						if(clientes_copia.empty())
+						{
+							printf("Me han llegado todos los ACKs esperados.\n");
 						}
 						break;
 					case MENSAJE_SALUDO:
@@ -230,6 +235,9 @@ int main(int argc, const char * argv[])
 						info.id = nombre_reply.cliente_id_origen;
 						strcpy(info.nombre, nombre_reply.nombre);
 						clientes_conocidos.push_back(info);
+						break;
+					case MENSAJE_DESCONEXION:
+						break;
 					default:
 						break;
 				}

@@ -105,6 +105,7 @@ void grupo_thread (int epoll_thread_fd)
 	struct mensaje_reconocimiento 		reconocimiento;
 	struct mensaje_nombre_request 		nombre_request;
 	struct mensaje_nombre_reply 		nombre_reply;
+	struct mensaje_desconexion			desconexion;
 	_tipo_mensaje 						tipo_mensaje;
 	vector<_cliente_id>					clientes;
 	uint8_t								buffer[200];
@@ -143,11 +144,16 @@ void grupo_thread (int epoll_thread_fd)
 				printf("Se ha desconectado un cliente. Socket: %d\n", socket);
 				epoll_ctl(epoll_thread_fd, EPOLL_CTL_DEL, socket, NULL);
 				close(socket);
+				buffer[0] = MENSAJE_DESCONEXION;
+				desconexion.cliente_id_origen = socket;
+				memcpy(&buffer[1],&desconexion, sizeof(desconexion));
 				for(uint j=0; j < clientes.size(); j++) 
 				{
 					if(clientes[j]==socket)
 					{
 						clientes.erase(clientes.begin() + j);
+					} else {
+						send(clientes[j], buffer, sizeof(_tipo_mensaje) + sizeof(desconexion), 0);
 					}
 				}
 				continue;

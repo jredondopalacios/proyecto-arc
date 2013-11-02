@@ -15,6 +15,10 @@ typedef int 			_cliente_id;
 typedef uint8_t  		_grupo_id;
 typedef uint8_t  		_tipo_mensaje;
 
+struct mensaje_desconexion {
+	_cliente_id cliente_id_origen;
+};
+
 struct mensaje_conexion {
 	_grupo_id grupo;
 } __attribute__((packed));
