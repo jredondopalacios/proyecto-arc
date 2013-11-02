@@ -41,7 +41,7 @@ int main(int argc, const char * argv[])
     
 	dir.sin_family=PF_INET;
 	dir.sin_port=htons(12345);
-    inet_aton("127.0.0.1",&dir.sin_addr);
+    inet_aton(argv[1],&dir.sin_addr);
 
 	if (connect(sock, (struct sockaddr *)&dir, sizeof(struct sockaddr_in))<0)
 	{
