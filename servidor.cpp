@@ -80,7 +80,7 @@ las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa man
 índice binario para búsqueda */
 map<uint8_t,int> grupos_sets;
 
-inline int recv_tipo_mensaje(int sd) {
+inline uint8_t recv_tipo_mensaje(int sd) {
 	uint8_t tipo;
 	int rc;
 	rc = recv(sd, &tipo, sizeof(tipo),0);
@@ -128,7 +128,9 @@ void grupo_thread (int epoll_thread_fd)
 		{
 			int socket = events[i].data.fd;
 
-			switch (recv_tipo_mensaje(socket))
+			uint8_t tipo_mensaje = recv(socket, &tipo_mensaje, sizeof(uint8_t),0);
+
+			switch (tipo_mensaje)
 			{
 			case MENSAJE_DESCONEXION:
 				printf("Se ha desconectado un cliente. Socket: %d\n", socket);
@@ -145,7 +147,7 @@ void grupo_thread (int epoll_thread_fd)
 				printf("Se ha conectado %s\n", saludo.nombre);
 				break;
 			default:
-				printf("Mensaje no reconocido. Identificador de socket: %d\n", socket);
+				printf("Mensaje no reconocido. Identificador de socket: %d. Mensaje leído: %d\n", socket, tipo_mensaje);
 			}
 		}
 	} while (!cerrar_hilo);
