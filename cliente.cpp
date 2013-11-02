@@ -20,18 +20,38 @@
 #include <ctime>
 #include <string.h>
 #include <unistd.h>
-
+#include <sys/time.h>
 
 #include "mensajes.h"
 
 using namespace std;
 
+typedef int64_t msec_t;
+
+msec_t time_ms(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (msec_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
 int main(int argc, const char * argv[])
 {
 
-    int                     sock, rc;
+    int                     sock, rc, secuencia = 0;
     struct sockaddr_in      dir;
     uint8_t                 buffer[200];
+    _cliente_id				cliente_id;
+    fd_set					fd, fd_copy;
+
+    struct mensaje_posicion 			posicion;
+	struct mensaje_reconocimiento 		reconocimiento;
+	struct mensaje_nombre_request 		nombre_request;
+	struct mensaje_nombre_reply 		nombre_reply;
+
+	UNUSED(reconocimiento);
+	UNUSED(nombre_reply);
+	UNUSED(nombre_request);
 
 	if ((sock=socket(PF_INET, SOCK_STREAM, 0))<0)
 	{
@@ -70,8 +90,10 @@ int main(int argc, const char * argv[])
 
 
 	printf("Recibidos datos de confirmación del servidor.\n");
-	printf("Mi ID de cliente es: %d\n", buffer[1]);
 
+
+	cliente_id = buffer[1];
+	printf("Mi ID de cliente es: %d\n", cliente_id);
 	struct mensaje_saludo nuevo_saludo;
 	string s = "Jordi";
 	strcpy(nuevo_saludo.nombre, s.c_str());
@@ -87,7 +109,51 @@ int main(int argc, const char * argv[])
 		exit(0);
 	}
 
-	sleep(10);
+	struct mensaje_posicion miPosicion;
+	miPosicion.cliente_id_origen = cliente_id;
+	miPosicion.posicion_x = 100;
+	miPosicion.posicion_y = 150;
+	miPosicion.posicion_z = -200;
+
+	int64_t ticker = time_ms();
+
+	FD_ZERO(&fd);
+	FD_SET(sock, &fd);
+	int n;
+	struct timeval          timeout;
+	timeout.tv_sec = 0;
+    timeout.tv_usec = 1000;
+
+	while(1)
+	{
+		memcpy(&fd_copy, &fd, sizeof(fd));
+		n = select(sock + 1, &fd_copy, NULL, NULL, &timeout);
+
+		if((time_ms() - ticker) > 1000)
+		{
+			buffer[0] = MENSAJE_POSICION;
+			miPosicion.numero_secuencia = ++secuencia;
+			memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
+			send(sock, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
+			ticker = time_ms();
+		}
+
+		if(n > 0)
+		{
+			if(FD_ISSET(sock, &fd_copy))
+			{
+				_tipo_mensaje tipo;
+				recv(sock, &tipo, sizeof(tipo), 0);
+				switch(tipo)
+				{
+					case MENSAJE_POSICION:
+						printf("Recibido mensaje de posición.\n");
+						recv(sock, &posicion, sizeof(posicion), 0);
+						printf("Origen ID: %d\n", posicion.cliente_id_origen);
+				}
+			}
+		}
+	}
 
 	return 0;
 }

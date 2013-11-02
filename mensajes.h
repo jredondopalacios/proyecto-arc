@@ -9,6 +9,8 @@
 
 #define NOMBRE_MAX_CHAR						20
 
+#define UNUSED(expr) do { (void)(expr); } while (0)
+
 typedef int 			_cliente_id;
 typedef uint8_t  		_grupo_id;
 typedef uint8_t  		_tipo_mensaje;

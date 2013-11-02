@@ -58,8 +58,6 @@
 #define SERVER_PORT  12345
 #define MAXEVENTS	    20
 
-#define UNUSED(expr) do { (void)(expr); } while (0)
-
 #define TRUE             1
 #define FALSE            0
 
@@ -169,6 +167,7 @@ void grupo_thread (int epoll_thread_fd)
 				printf("Se ha conectado %s\n", saludo.nombre);
 				break;
 			case MENSAJE_POSICION:
+				printf("Mensaje de posición recibido.\n");
 				rc = recv(socket, &posicion, sizeof(posicion), 0);
 				if(rc < 0)
 				{
