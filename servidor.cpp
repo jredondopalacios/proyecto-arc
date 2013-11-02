@@ -63,11 +63,9 @@
 #define TRUE             1
 #define FALSE            0
 
-using namespace std;
 
-// Definimos un typedef de int para, en el map<int,int>, tener más claro qué significa la clave y qué el valor
-typedef int socket_t;
-typedef int cliente_id;
+
+using namespace std;
 
 /* Almacenaremos todos los hilos creados para los grupos en un vector, para, cuando terminemos, esperar a que
 estos hilos terminen antes */
@@ -128,7 +126,11 @@ void grupo_thread (int epoll_thread_fd)
 		{
 			int socket = events[i].data.fd;
 
-			uint8_t tipo_mensaje = recv(socket, &tipo_mensaje, sizeof(uint8_t),0);
+			uint8_t tipo_mensaje;
+
+			recv(socket, &tipo_mensaje, sizeof(uint8_t),0);
+
+			printf("Datos leídos: %d\n", tipo_mensaje);
 
 			switch (tipo_mensaje)
 			{
@@ -147,7 +149,7 @@ void grupo_thread (int epoll_thread_fd)
 				printf("Se ha conectado %s\n", saludo.nombre);
 				break;
 			default:
-				printf("Mensaje no reconocido. Identificador de socket: %d. Mensaje leído: %d\n", socket, tipo_mensaje);
+				printf("Mensaje no reconocido. Identificador de socket: %d. Mensaje leído: %02X\n", socket, tipo_mensaje);
 			}
 		}
 	} while (!cerrar_hilo);
