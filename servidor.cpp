@@ -76,10 +76,10 @@ se unan a los grupos Este descriptor se le pasará al hilo para que espere sobre
 map<key,value> por su coste de búsqueda de log(n). Aún no siendo una operación crítica, sí que va a haber más accesos a
 las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa mantenerlo en un contendeor ordenado y con
 índice binario para búsqueda */
-map<uint8_t,int> grupos_sets;
+map<_grupo_id,int> grupos_sets;
 
-inline uint8_t recv_tipo_mensaje(int sd) {
-	uint8_t tipo;
+inline _tipo_mensaje recv_tipo_mensaje(int sd) {
+	_tipo_mensaje tipo;
 	int rc;
 	rc = recv(sd, &tipo, sizeof(tipo),0);
 	if (rc < 0)
@@ -100,17 +100,23 @@ aislando cada hilo las tareas de gestión de mensajes de los grupos. Es la princ
 para paralelizar las tareas del servidor. */
 void grupo_thread (int epoll_thread_fd) 
 {
-	int  desc_ready, rc, cerrar_hilo = FALSE, contador_ids = 0;
-	map<cliente_id,socket_t> clientes;
-	struct epoll_event *events;
-	events = (epoll_event*) calloc(MAXEVENTS, sizeof(events));
-	struct mensaje_saludo saludo;
+	int  								desc_ready, rc, cerrar_hilo = FALSE, socket;
+	struct epoll_event* 				events;
+	struct mensaje_saludo 				saludo;
+	struct mensaje_posicion 			posicion;
+	struct mensaje_reconocimiento 		reconocimiento;
+	struct mensaje_nombre_request 		nombre_request;
+	struct mensaje_nombre_reply 		nombre_reply;
+	_tipo_mensaje 						tipo_mensaje;
 
-	UNUSED(contador_ids);
-	UNUSED(clientes);
+	UNUSED(posicion);
+	UNUSED(reconocimiento);
+	UNUSED(nombre_request);
+	UNUSED(nombre_reply);
 
 	printf("Grupo creado!\n");
 
+	events = (epoll_event*) calloc(MAXEVENTS, sizeof(events));
 
 	do {
 
@@ -124,20 +130,23 @@ void grupo_thread (int epoll_thread_fd)
 
 		for(int i = 0; i < desc_ready; i++)
 		{
-			int socket = events[i].data.fd;
+			socket = events[i].data.fd;
 
-			uint8_t tipo_mensaje;
+			rc = recv(socket, &tipo_mensaje, sizeof(uint8_t),0);
 
-			recv(socket, &tipo_mensaje, sizeof(uint8_t),0);
+			if(rc < 0)
+				perror("recv() error");
 
-			printf("Datos leídos: %d\n", tipo_mensaje);
+			if(rc == 0)
+			{
+				printf("Se ha desconectado un cliente. Socket: %d\n", socket);
+				epoll_ctl(epoll_thread_fd, EPOLL_CTL_DEL, socket, NULL);
+				close(socket);
+				continue;
+			}
 
 			switch (tipo_mensaje)
 			{
-			case MENSAJE_DESCONEXION:
-				printf("Se ha desconectado un cliente. Socket: %d\n", socket);
-				close(socket);
-				break;
 			case MENSAJE_SALUDO:
 				printf("Mensaje de saludo recibido.\n");
 				rc = recv(socket, &saludo, sizeof(saludo), 0);
@@ -159,16 +168,17 @@ void nueva_conexion_thread (int new_sd)
 {
 	printf("Nueva conexión.\n");
 
-    struct mensaje_conexion nuevo_mensaje_conexion;
-    int close_conn = FALSE, rc;
-    epoll_event event;
-    static uint8_t tipo_aux = MENSAJE_CONEXION_SATISFACTORIA;
+    struct mensaje_conexion 					nuevo_mensaje_conexion;
+    struct mensaje_conexion_satisfactoria 		conexion_satisfactoria;
+    int 										close_conn = FALSE, rc;
+    epoll_event 								event;
+    _tipo_mensaje 								tipo_mensaje;
 
     event.data.fd = new_sd;
 	event.events = EPOLLIN;
 
     /* Primero leemos un mensaje que nos indicará que tipo de mensaje acaba de enviarnos el cliente */
-    rc = recv_tipo_mensaje(new_sd);
+    rc = recv(new_sd, &tipo_mensaje, sizeof(_tipo_mensaje),0);
     if (rc < 0)
     {
         perror("recv() failed");
@@ -181,7 +191,7 @@ void nueva_conexion_thread (int new_sd)
 	try
 	{
 		// Antes que nada comprobamos que es el mensaje que esperamos. Si no, no haremos nada */
-		if(rc == MENSAJE_CONEXION)
+		if(tipo_mensaje == MENSAJE_CONEXION)
 		{
 			printf("Mensaje de conexión a grupo recibido.\n");
 
@@ -204,7 +214,7 @@ void nueva_conexion_thread (int new_sd)
    			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
 
    			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);
-   			send(new_sd, &tipo_aux, sizeof(tipo_aux),0);	
+   				
    		}
 
 	} catch (const std::out_of_range& oor) {
@@ -218,7 +228,6 @@ void nueva_conexion_thread (int new_sd)
 		grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
 		grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
 		epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, new_sd, &event);
-		send(new_sd, &tipo_aux, sizeof(tipo_aux),0);
 	}
 
     if (rc == 0)
@@ -231,6 +240,13 @@ void nueva_conexion_thread (int new_sd)
     {
         close(new_sd);
     }
+
+    tipo_mensaje = MENSAJE_CONEXION_SATISFACTORIA;
+	_tipo_mensaje buffer[50];
+	buffer[0] = tipo_mensaje;
+	conexion_satisfactoria.cliente_id = new_sd;
+	memcpy(&buffer[1], &conexion_satisfactoria, sizeof(mensaje_conexion_satisfactoria));
+	send(new_sd, buffer, sizeof(_tipo_mensaje) + sizeof(mensaje_conexion_satisfactoria),0);
 }
 
 /* Función principal del servidor. La función corre sobre el hilo principal, y no realiza ninguna

@@ -41,7 +41,7 @@ int main(int argc, const char * argv[])
     
 	dir.sin_family=PF_INET;
 	dir.sin_port=htons(12345);
-    inet_aton("192.168.1.139",&dir.sin_addr);
+    inet_aton("127.0.0.1",&dir.sin_addr);
 
 	if (connect(sock, (struct sockaddr *)&dir, sizeof(struct sockaddr_in))<0)
 	{
@@ -65,7 +65,9 @@ int main(int argc, const char * argv[])
 		exit(0);
 	}
 
-	rc = recv(sock, buffer, sizeof(uint8_t), 0);
+	rc = recv(sock, buffer, sizeof(uint8_t) + sizeof(mensaje_conexion_satisfactoria), 0);
+
+
 
 	printf("Recibidos datos de confirmación del servidor.\n");
 

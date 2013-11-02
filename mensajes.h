@@ -9,16 +9,16 @@
 
 #define NOMBRE_MAX_CHAR						20
 
-typedef uint32_t _cliente_id;
-typedef uint32_t _socket;
-typedef uint8_t  _grupo_id;
+typedef int 			_cliente_id;
+typedef uint8_t  		_grupo_id;
+typedef uint8_t  		_tipo_mensaje;
 
 struct mensaje_conexion {
 	_grupo_id grupo;
 } __attribute__((packed));
 
 struct mensaje_conexion_satisfactoria {
-	_cliente_id id;
+	_cliente_id cliente_id;
 } __attribute__((packed));
 
 struct mensaje_saludo {
@@ -41,7 +41,7 @@ struct mensaje_reconocimiento {
 
 struct mensaje_nombre_request {
 	_cliente_id cliente_id_origen;
-	_cliente_id cliente_id_destino
+	_cliente_id cliente_id_destino;
 } __attribute__((packed));
 
 struct mensaje_nombre_reply {
