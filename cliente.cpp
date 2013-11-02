@@ -49,6 +49,7 @@ int main(int argc, const char * argv[])
 	struct mensaje_reconocimiento 		reconocimiento;
 	struct mensaje_nombre_request 		nombre_request;
 	struct mensaje_nombre_reply 		nombre_reply;
+	struct mensaje_desconexion 			desconexion;
 
 	UNUSED(nombre_reply);
 	UNUSED(nombre_request);
@@ -237,6 +238,15 @@ int main(int argc, const char * argv[])
 						clientes_conocidos.push_back(info);
 						break;
 					case MENSAJE_DESCONEXION:
+						recv(sock, &desconexion, sizeof(desconexion), 0);
+						for(uint j=0; j < clientes_conocidos.size(); j++)
+						{
+							if(clientes_conocidos[j].id == desconexion.cliente_id_origen)
+							{
+								clientes_conocidos.erase(clientes_conocidos.begin() + j);
+								break;
+							}
+						}
 						break;
 					default:
 						break;
