@@ -22,6 +22,7 @@ struct mensaje_conexion_satisfactoria {
 } __attribute__((packed));
 
 struct mensaje_saludo {
+	_cliente_id cliente_id_origen;
 	char nombre[NOMBRE_MAX_CHAR];
 } __attribute__((packed));
 

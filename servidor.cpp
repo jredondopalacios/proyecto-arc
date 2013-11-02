@@ -108,6 +108,7 @@ void grupo_thread (int epoll_thread_fd)
 	struct mensaje_nombre_request 		nombre_request;
 	struct mensaje_nombre_reply 		nombre_reply;
 	_tipo_mensaje 						tipo_mensaje;
+	vector<_cliente_id>					clientes;
 
 	UNUSED(posicion);
 	UNUSED(reconocimiento);
