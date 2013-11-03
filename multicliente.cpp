@@ -124,7 +124,7 @@ int cliente_thread(int grupo)
 	miPosicion.posicion_y = 150;
 	miPosicion.posicion_z = -200;
 
-	int64_t ticker = 0;
+	int64_t ticker = 0, inicio = time_ms();
 	FD_ZERO(&fd);
 	FD_SET(sock, &fd);
 	int n;
@@ -148,11 +148,11 @@ int cliente_thread(int grupo)
 	while(secuencia < 100)
 	{
 		memcpy(&fd_copy, &fd, sizeof(fd));
-		n = select(sock + 1, &fd_copy, NULL, NULL, &timeout);
+		n = select(sock + 1, &fd_copy, NULL, NULL, NULL);
 
 		if(nuevo_ciclo)
 		{
-			fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
+			//fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
 			buffer[0] = MENSAJE_POSICION;
 			miPosicion.numero_secuencia = ++secuencia;
 			memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
@@ -160,7 +160,7 @@ int cliente_thread(int grupo)
 			ticker = time_ms();
 			clientes_copia = clientes_conocidos;
 			nuevo_ciclo = false;
-			fichero << "Se necesitan encontrar " << clientes_copia.size() << " ACKs coincidentes para siguiente ciclo." << endl;
+			//fichero << "Se necesitan encontrar " << clientes_copia.size() << " ACKs coincidentes para siguiente ciclo." << endl;
 		}
 
 		if(n > 0)
@@ -222,7 +222,7 @@ int cliente_thread(int grupo)
 						}
 						if(clientes_copia.empty())
 						{
-							fichero << " >>>>>>>>>>>>>>> Recibidos todos los ACK. Latencia de ciclo: " << time_ms() - ticker << endl;
+							//fichero << " >>>>>>>>>>>>>>> Recibidos todos los ACK. Latencia de ciclo: " << time_ms() - ticker << endl;
 							//fichero << "Empezando nuevo ciclo..." << endl;
 							nuevo_ciclo = true;
 						}
@@ -284,6 +284,7 @@ int cliente_thread(int grupo)
 			}
 		}
 	}
+	fichero << "Completados 100 ciclos, tiempo total " << (time_ms() - inicio)  / 1000 << "segundos." << endl;
 	fichero.close();
 	return 0;
 }
