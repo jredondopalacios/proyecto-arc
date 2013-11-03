@@ -24,12 +24,17 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sstream>
+#include <mutex>
 
 #include "mensajes.h"
 
 using namespace std;
 
 typedef int64_t msec_t;
+
+mutex mtx;
+
+int contador_hilos = 0;
 
 msec_t time_ms(void)
 {
@@ -129,7 +134,7 @@ int cliente_thread(int grupo)
 	FD_SET(sock, &fd);
 	int n;
 	struct timeval  timeout;
-	timeout.tv_sec = 0;
+	timeout.tv_sec = 1;
     timeout.tv_usec = 1000;
     bool nuevo_ciclo = true;
 
@@ -145,14 +150,16 @@ int cliente_thread(int grupo)
 
     fichero << "Cliente conectado a GRUPO " << grupo << " con ID " << cliente_id << endl;
 
-	while(secuencia < 100)
+	while(true)
 	{
 		memcpy(&fd_copy, &fd, sizeof(fd));
-		n = select(sock + 1, &fd_copy, NULL, NULL, NULL);
+		n = select(sock + 1, &fd_copy, NULL, NULL, &timeout);
 
 		if(nuevo_ciclo)
 		{
-			//fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
+			if(secuencia+1 == 100)
+				break;
+			fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
 			buffer[0] = MENSAJE_POSICION;
 			miPosicion.numero_secuencia = ++secuencia;
 			memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
@@ -160,7 +167,9 @@ int cliente_thread(int grupo)
 			ticker = time_ms();
 			clientes_copia = clientes_conocidos;
 			nuevo_ciclo = false;
-			//fichero << "Se necesitan encontrar " << clientes_copia.size() << " ACKs coincidentes para siguiente ciclo." << endl;
+			fichero << "Se necesitan encontrar " << clientes_copia.size() << " ACKs coincidentes para siguiente ciclo." << endl;
+			if(clientes_copia.empty() && (secuencia > 70))
+				break;
 		}
 
 		if(n > 0)
@@ -171,7 +180,6 @@ int cliente_thread(int grupo)
 				recv(sock, &tipo, sizeof(tipo), 0);
 				bool encontrado;
 				struct cliente_info info;
-				//fichero << "Recibido mensaje nuevo. Tipo: " << tipo << endl;
 				switch(tipo)
 				{
 					case MENSAJE_POSICION:
@@ -181,7 +189,7 @@ int cliente_thread(int grupo)
 						reconocimiento.cliente_id_destino = posicion.cliente_id_origen;
 						reconocimiento.numero_secuencia = posicion.numero_secuencia;
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
-						//fichero << "Recibida actualización de posición. Enviando reconocimiento a ID " << posicion.cliente_id_origen << endl;
+						fichero << "Recibida actualización de posición. Enviando reconocimiento a ID " << posicion.cliente_id_origen << endl;
 						send(sock, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
 						encontrado = false;
 						for(uint j=0; j < clientes_conocidos.size(); j++)
@@ -215,15 +223,23 @@ int cliente_thread(int grupo)
 								if(clientes_copia[j].id == reconocimiento.cliente_id_origen)
 								{
 									clientes_copia.erase(clientes_copia.begin() + j);
-									//fichero << "ACK de cliente en espera encontrado." << endl;
+									fichero << "ACK de cliente en espera encontrado." << endl;
+									fichero << "Aún espero " << clientes_copia.size() << " mensajes más." << endl;
 									break;
 								}
 							}
 						}
 						if(clientes_copia.empty())
 						{
-							//fichero << " >>>>>>>>>>>>>>> Recibidos todos los ACK. Latencia de ciclo: " << time_ms() - ticker << endl;
-							//fichero << "Empezando nuevo ciclo..." << endl;
+							/*fichero << " >>>>>>>>>>>>>>> Recibidos todos los ACK. Latencia de ciclo: " << time_ms() - ticker << endl;
+							fichero << "Empezando nuevo ciclo..." << endl;
+							//nuevo_ciclo = true;
+							buffer[0] = MENSAJE_POSICION;
+							miPosicion.numero_secuencia = ++secuencia;
+							memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
+							send(sock, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
+							ticker = time_ms();
+							clientes_copia = clientes_conocidos;*/
 							nuevo_ciclo = true;
 						}
 						break;
@@ -232,8 +248,8 @@ int cliente_thread(int grupo)
 						info.id = nuevo_saludo.cliente_id_origen;
 						strcpy(info.nombre, nuevo_saludo.nombre);
 						clientes_conocidos.push_back(info);
-						//fichero << "Se ha conectado un nuevo miembro a GRUPO: " << info.id << " con ID: " << info.id << endl;
-						//fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
+						fichero << "Se ha conectado un nuevo miembro a GRUPO: " << info.id << " con ID: " << info.id << endl;
+						fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
 						break;
 					case MENSAJE_NOMBRE_REQUEST:
 						recv(sock, &nombre_request, sizeof(nombre_request),0);
@@ -262,20 +278,43 @@ int cliente_thread(int grupo)
 						if(!encontrado)
 						{
 							clientes_conocidos.push_back(info);
-							//fichero << "Recibida información de ID: " << info.id << endl;
-							//fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
+							fichero << "Recibida información de ID: " << info.id << endl;
+							fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
 						}
 						
 						break;
 					case MENSAJE_DESCONEXION:
 						recv(sock, &desconexion, sizeof(desconexion), 0);
+						fichero << "Mensaje de desconexión." << endl;
 						for(uint j=0; j < clientes_conocidos.size(); j++)
 						{
 							if(clientes_conocidos[j].id == desconexion.cliente_id_origen)
 							{
+								fichero << "Se ha desconectado un cliente conocido." << endl;
 								clientes_conocidos.erase(clientes_conocidos.begin() + j);
 								break;
 							}
+						}
+						for(uint j=0; j < clientes_copia.size(); j++)
+						{
+							if(clientes_copia[j].id == desconexion.cliente_id_origen)
+							{
+								clientes_copia.erase(clientes_copia.begin() + j);
+
+								fichero << "Se ha desconectado un cliente del que se esperaba su reconocimiento." << endl;
+								break;
+							}
+						}
+						fichero << "Aún espero " << clientes_copia.size() << " mensajes de reconocimiento más." << endl;
+						if(clientes_copia.empty())
+						{
+							nuevo_ciclo = true;
+							/*buffer[0] = MENSAJE_POSICION;
+							miPosicion.numero_secuencia = ++secuencia;
+							memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
+							send(sock, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
+							ticker = time_ms();
+							clientes_copia = clientes_conocidos;*/
 						}
 						break;
 					default:
@@ -284,8 +323,14 @@ int cliente_thread(int grupo)
 			}
 		}
 	}
-	fichero << "Completados 100 ciclos, tiempo total " << (time_ms() - inicio)  / 1000 << "segundos." << endl;
+	fichero << "Completados 100 ciclos, tiempo total " << (time_ms() - inicio)  / 1000 << " segundos." << endl;
+	fichero << "Tiempo medio de ciclo: " << ((time_ms() - inicio)  / (1000 * (secuencia + 1.0))) << " segundos." << endl;
 	fichero.close();
+	mtx.lock();
+	contador_hilos++;
+	cout << "El Hilo " << contador_hilos << " con ID " << cliente_id << "ha terminado." << endl;
+	close(sock);
+	mtx.unlock();
 	return 0;
 }
 
@@ -303,10 +348,12 @@ int main(int argc, const char* argv[])
 			hilos.push_back(thread(cliente_thread, i));
 		}
 	}
-
+	cout << "A la espera de que terminen los hilos..." << endl;
 	for(uint i = 0; i < hilos.size(); i++)
 	{
 		hilos[i].join();
+		//cout << "Hilo " << i << " terminado." << endl;
 	}
+	cout << "Prueba finalizada." << endl;
 	return 0;
 }

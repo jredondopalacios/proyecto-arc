@@ -127,7 +127,6 @@ void grupo_thread (int epoll_thread_fd)
 		if(desc_ready < 0)
 		{
 			perror("epoll_wait() error");
-			return;
 		}
 
 		for(int i = 0; i < desc_ready; i++)
@@ -140,10 +139,10 @@ void grupo_thread (int epoll_thread_fd)
 			// Leemos los 8 primeros bits, correspondientes al tipo de mensaje
 			rc = recv(socket, &tipo_mensaje, sizeof(uint8_t),0);
 
-			if(rc < 0)
-				perror("recv() error");
+			//if(rc < 0)
+			//	perror("recv() error");
 
-			if(rc == 0)
+			if(rc <= 0)
 			{
 				printf("Se ha desconectado un cliente. Socket: %d\n", socket);
 				epoll_ctl(epoll_thread_fd, EPOLL_CTL_DEL, socket, NULL);
@@ -156,10 +155,19 @@ void grupo_thread (int epoll_thread_fd)
 					if(clientes[j]==socket)
 					{
 						clientes.erase(clientes.begin() + j);
-					} else {
-						send(clientes[j], buffer, sizeof(_tipo_mensaje) + sizeof(desconexion), 0);
+						break;
 					}
 				}
+				for(uint j=0; j < clientes.size(); j++) 
+				{
+					if (send(clientes[j], buffer, sizeof(_tipo_mensaje) + sizeof(desconexion), 0)< 0)
+					{
+						perror("send() error ");
+						printf("Socket conflictivo: %d\n", clientes[j]);
+					}
+
+				}
+				
 				continue;
 			}
 
