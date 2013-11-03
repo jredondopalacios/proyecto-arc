@@ -43,7 +43,7 @@ msec_t time_ms(void)
     return (msec_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-int cliente_thread(int grupo)
+int cliente_thread(int grupo, string nombre_fichero)
 {
 	ofstream fichero;
     int                     sock, rc; 
@@ -70,7 +70,7 @@ int cliente_thread(int grupo)
     
 	dir.sin_family=PF_INET;
 	dir.sin_port=htons(12345);
-    inet_aton("127.0.0.1",&dir.sin_addr);
+    inet_aton("192.168.1.137",&dir.sin_addr);
 
 	if (connect(sock, (struct sockaddr *)&dir, sizeof(struct sockaddr_in))<0)
 	{
@@ -114,7 +114,7 @@ int cliente_thread(int grupo)
 
 	ssm << "client-log-" << cliente_id << ".txt";
 
-	fichero.open(ssm.str());
+	fichero.open(nombre_fichero);
 	
 	
 	if(rc < 0)
@@ -148,7 +148,8 @@ int cliente_thread(int grupo)
 
     vector<cliente_info> clientes_conocidos, clientes_copia;
 
-    fichero << "Cliente conectado a GRUPO " << grupo << " con ID " << cliente_id << endl;
+    cout << "Cliente conectado a GRUPO " << grupo << " con ID " << cliente_id << endl;
+    fichero << cliente_id << endl;
 
 	while(true)
 	{
@@ -248,7 +249,7 @@ int cliente_thread(int grupo)
 						info.id = nuevo_saludo.cliente_id_origen;
 						strcpy(info.nombre, nuevo_saludo.nombre);
 						clientes_conocidos.push_back(info);
-						fichero << "Se ha conectado un nuevo miembro a GRUPO: " << info.id << " con ID: " << info.id << endl;
+						fichero << "Se ha conectado un nuevo miembro a GRUPO: " << grupo << " con ID: " << info.id << endl;
 						fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
 						break;
 					case MENSAJE_NOMBRE_REQUEST:
@@ -345,7 +346,9 @@ int main(int argc, const char* argv[])
 	{
 		for(int j = 0; j < clientes_en_grupo; j++)
 		{
-			hilos.push_back(thread(cliente_thread, i));
+			stringstream ssm;
+			ssm << "client-log-" << i << "-" << j << ".txt";
+			hilos.push_back(thread(cliente_thread, i, ssm.str()));
 		}
 	}
 	cout << "A la espera de que terminen los hilos..." << endl;
