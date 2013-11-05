@@ -29,12 +29,12 @@
 /*    creemos que con muchos clientes obtendríamos un peor rendimiento por culpa del overhead de lanzar   */
 /*    tantos hilos como clientes de un grupo, y destruirlos a los pocos milisegundos.                     */
 /*                                                                                                        */
-/*		  Además se ha abandonado el uso de la sentencia select() debido a su bajo rendimiento y escala-  */
-/*	  bilidad. En su lugar utilizamos epoll, un sistema sólo de Linux presente desde la versión del       */
-/*	  kernel 2.6. epoll no sólo elimina el límite que tenía select() en cuanto a total de descriptores,   */
-/*	  sino que además el coste de select() era lineal con el número de descriptores a comprobar, mientras */
-/*	  que el de epoll es lineal. Esto provoca que la aplicación sea mucho más escalable, más eficiente,   */
-/*	  y soporte más clientes.                                                                             */
+/*	  Además se ha abandonado el uso de la sentencia select() debido a su bajo rendimiento y escala-  */
+/*    bilidad. En su lugar utilizamos epoll, un sistema sólo de Linux presente desde la versión del       */
+/*    kernel 2.6. epoll no sólo elimina el límite que tenía select() en cuanto a total de descriptores,   */
+/*    sino que además el coste de select() era lineal con el número de descriptores a comprobar, mientras */
+/*    que el de epoll es lineal. Esto provoca que la aplicación sea mucho más escalable, más eficiente,   */
+/*    y soporte más clientes.                                                                             */
 /*                                                                                                        */
 /**********************************************************************************************************/
 
@@ -70,7 +70,10 @@ using namespace std;
 estos hilos terminen antes */
 vector<thread> grupos_hilos;
 
-mutex mtx;
+
+/* Declaramos un mutex global que usará el hilo de conexión cuando tenga que añadir nuevos miembros a los grupos
+o crear grupos nuevos */
+mutex mutex_conexion;
 
 /* Los descriptores de fichero de epoll permitirán al hilo principal actualizarlos cuando entre nuevas conexiones que
 se unan a los grupos Este descriptor se le pasará al hilo para que espere sobre él. Se ha optado por un contendor de tipo
@@ -124,42 +127,64 @@ void grupo_thread (int epoll_thread_fd)
 		al evento */
 		desc_ready = epoll_wait(epoll_thread_fd, events, MAXEVENTS, -1);
 
+		/* Si epoll tiene un error, devolverá negativo */
 		if(desc_ready < 0)
 		{
 			perror("epoll_wait() error");
 		}
 
+		/* Si no da error, epoll devuelve el número de descriptores que han disparado los eventos; es decir
+		los que están preparados con datos para leer */
 		for(int i = 0; i < desc_ready; i++)
 		{
 			/* Por cada descriptor disponible tenemos una estructura epoll_event lista.
 			Lo único que tenemos que hacer es iterar sobre este vector y obtener el
-			descriptor de socket asociado a cada evento*/
+			descriptor de socket asociado a cada evento */
 			socket = events[i].data.fd;
 
 			// Leemos los 8 primeros bits, correspondientes al tipo de mensaje
 			rc = recv(socket, &tipo_mensaje, sizeof(uint8_t),0);
 
-			//if(rc < 0)
-			//	perror("recv() error");
-
+			/* Tanto en caso de que haya un error leyendo dicho socket, o de que la lectura devuelva cero,
+			se procederá a eliminar al cliente del grupo y cerrar la conexión */
 			if(rc <= 0)
 			{
-				printf("Se ha desconectado un cliente. Socket: %d\n", socket);
+				// Mostramos mensaje por consola
+				printf("[DESCONEXIÓN] Socket: %d, recv:%d\n", socket, rc);
+
+				// Eliminamos el socket para que el hilo ya no compruebe sus mensajes y cerramos conexión
 				epoll_ctl(epoll_thread_fd, EPOLL_CTL_DEL, socket, NULL);
 				close(socket);
+
+				/* Además, puesto que es el servidor el único que es consciente de estas desconexiones, creamos
+				un mensaje de desconexión, indicando quién se ha desconectado, y se lo enviamos a los demás
+				miembros del grupo */
+
+				// El primer byte siempre es el tipo de mensaje
 				buffer[0] = MENSAJE_DESCONEXION;
+
+				// La ID Origen se refiere al cliente que se ha desconectado
 				desconexion.cliente_id_origen = socket;
+
+				// Copiamos la estructura del mensaje a contuniación del byte de tipo de mensaje
 				memcpy(&buffer[1],&desconexion, sizeof(desconexion));
+
+				/* Ahora, recorreremos toda la lista de clientes conocidos para eliminar el que se acaba de 
+				desconectar */
 				for(uint j=0; j < clientes.size(); j++) 
 				{
 					if(clientes[j]==socket)
 					{
+						// Antes de reenviar, debemos borrar el cliente desconectado de la lista
 						clientes.erase(clientes.begin() + j);
 						break;
 					}
 				}
 				for(uint j=0; j < clientes.size(); j++) 
 				{
+					/* Por cada miembro del grupo, eviamos el byte de tipo de mensaje y el mensaje.
+					En clientes[j] se almacena el socket de cada cliente, le enviamos el buffer y un tamaño
+					igual a el byte de tipo más la estructura mandada */
 					if (send(clientes[j], buffer, sizeof(_tipo_mensaje) + sizeof(desconexion), 0)< 0)
 					{
 						perror("send() error ");
@@ -168,89 +193,186 @@ void grupo_thread (int epoll_thread_fd)
 
 				}
 				
+				/* Si hemos recibido un mensaje de error al leer el mensaje o el cliente se ha desconectado, miramos
+				el siguiente evento de epoll y no hace falta que miremos el tipo de mensaje ya que no hemos leído nada */
 				continue;
-			}
 
-			switch (tipo_mensaje)
-			{
-			case MENSAJE_SALUDO:
-				//printf("Mensaje de saludo recibido.\n");
-				rc = recv(socket, &saludo, sizeof(saludo), 0);
-				if(rc < 0)
+			} else {
+
+				/* En caso de recibir datos correctamente, miramos qué valor contiene ese primer byte leído, correspondiente
+				al tipo de mensaje, y actuamos según sea necesário */
+				switch (tipo_mensaje)
 				{
-					perror("recv() error");
-					break;
-				}
-				
-				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
-				memcpy(&buffer[1], &saludo, sizeof(saludo));
-				for(uint j=0; j < clientes.size(); j++) 
-				{
-					send(clientes[j],buffer, sizeof(saludo) + sizeof(tipo_mensaje), 0);
-				}
-				clientes.push_back(socket);
-				//printf("Se ha conectado %s\n", saludo.nombre);
-				break;
-			case MENSAJE_POSICION:
-				rc = recv(socket, &posicion, sizeof(posicion), 0);
-				if(rc < 0)
-				{
-					perror("recv() error");
-					break;
-				}
-				tipo_mensaje = MENSAJE_POSICION;
-				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
-				memcpy(&buffer[1], &posicion, sizeof(posicion));
-				mensaje_size = sizeof(tipo_mensaje) + sizeof(posicion);
-				for(uint j=0; j < clientes.size(); j++) 
-				{
-					if(clientes[j]!=socket)
+				case MENSAJE_SALUDO:
+					
+					/* Los mensaje de saludo son obligatorios para todos los clientes. Cuando el servidor les consiga unir a
+					un grupo, estos deberán mandar un único mensaje de saludo indicando su nombre y su id. */
+
+					// Recibimos el resto del mensaje, la estructura mensaje_saludo
+					rc = recv(socket, &saludo, sizeof(saludo), 0);
+					if(rc < 0)
 					{
-						send(clientes[j],buffer, mensaje_size, 0);
+						perror("recv() error");
+						break;
 					}
-				}
-				break;
-			case MENSAJE_RECONOCIMIENTO:
-				rc = recv(socket, &reconocimiento, sizeof(reconocimiento), 0);
-				if(rc < 0)
-				{
-					perror("recv() error");
+					
+					// Copiamos el tipo de mensaje al primer byte del buffer
+					memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+
+					// Y el mismo mensaje de saludo a partir del segundo byte
+					memcpy(&buffer[1], &saludo, sizeof(saludo));
+
+					/* Enviamos el mensaje de saludo a cada cliente conocido. Este reenvío no es estrictamente necesário
+					ya que los propios clientes disponen de mecanismos para averiguar la identidad de miembros del grupo
+					de los cuales no han recibido su saludo. Aún así, este sencillo mensaje de saludo ayuda a no saturar la
+					red cada vez que se conecta un nuevo cliente */
+					for(uint j=0; j < clientes.size(); j++) 
+					{
+						rc = send(clientes[j],buffer, sizeof(saludo) + sizeof(tipo_mensaje), 0);
+
+						if(rc < 0)
+						{
+							perror("send() error");
+							break;
+						}
+					}
+
+					/* Al terminar, añadimos el cliente a nuestra lista. Importante remarcar que no hace falta que añadamos
+					el socket a nuestro identificador de epoll, pues esa tarea se delega en el hilo principal que maneja la
+					conexión de nuevos clientes */
+					clientes.push_back(socket);
 					break;
-				}
-				tipo_mensaje = MENSAJE_RECONOCIMIENTO;
-				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
-				memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
-				mensaje_size = sizeof(tipo_mensaje) + sizeof(reconocimiento);
-				send(reconocimiento.cliente_id_destino, buffer, mensaje_size, 0);
-				break;
-			case MENSAJE_NOMBRE_REQUEST:
-				rc = recv(socket, &nombre_request, sizeof(nombre_request), 0);
-				if(rc < 0)
-				{
-					perror("recv() error");
+
+				case MENSAJE_POSICION:
+					/* Los mensajes de posición no implican ninguna lógica en el lado del servidor y no hay que procesar
+					nada, siendo la única tarea del servidor la de reenviar el paquete a los demás vecinos */
+
+					// Recibimos el resto del mensaje y comprobamos errores
+					rc = recv(socket, &posicion, sizeof(posicion), 0);
+					if(rc < 0)
+					{
+						perror("recv() error");
+						break;
+					}
+
+					// Copiamos el tipo de mensaje al primer byte del buffer
+					memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+
+					// Copiamos la misma estructura de posición que hemos leído a partir del segundo byte del buffer
+					memcpy(&buffer[1], &posicion, sizeof(posicion));
+
+					/* Por cada cliente conocido, reenviamos la información */
+					for(uint j=0; j < clientes.size(); j++) 
+					{
+						if(clientes[j]!=socket)
+						{
+							rc = send(clientes[j],buffer, sizeof(tipo_mensaje) + sizeof(posicion), 0);
+
+							if(rc < 0)
+							{
+								perror("send() error");
+								break;
+							}
+						}
+					}
 					break;
-				}
-				tipo_mensaje = MENSAJE_NOMBRE_REQUEST;
-				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
-				memcpy(&buffer[1], &nombre_request, sizeof(nombre_request));
-				mensaje_size = sizeof(tipo_mensaje) + sizeof(nombre_request);
-				send(nombre_request.cliente_id_destino, buffer, mensaje_size, 0);
-				break;
-			case MENSAJE_NOMBRE_REPLY:
-				rc = recv(socket, &nombre_reply, sizeof(nombre_reply), 0);
-				if(rc < 0)
-				{
-					perror("recv() error");
+
+				case MENSAJE_RECONOCIMIENTO:
+
+					/* El mensaje de reconocimiento no es una inundación indiscriminada como el saludo o la posición,
+					sino que hay que reenviar el paquete sólo al cliente destino. Gracias a que las ID son las mismas que
+					los descriptores usadas por el servidor, tan sólo hay que reenviar el paquete al socket que aparezca
+					en el campo de ID destino. */
+
+					// Recibimos la estructura y comprobamos errores
+					rc = recv(socket, &reconocimiento, sizeof(reconocimiento), 0);
+					if(rc < 0)
+					{
+						perror("recv() error");
+						break;
+					}
+
+					// Copiamos el tipo de mensaje leído al primer byte del buffer
+					memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+
+					// Copiamos la misma estructura de mensaje a partir del segundo byte del buffer
+					memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
+
+					// Y simplemente enviamos el paquete de vuelta al campo destino
+					rc = send(reconocimiento.cliente_id_destino, buffer, sizeof(tipo_mensaje) + sizeof(reconocimiento), 0);
+
+					if(rc < 0)
+					{
+						perror("send() error");
+						break;
+					}
 					break;
+
+				case MENSAJE_NOMBRE_REQUEST:
+
+					/* Los mensajes de petición de nombre se usan cuando un cliente desconoce la identidad de algún vecino
+					y le envía un mensaje para descubrir su nombre y poder mostrarlo en la interfaz y esperar sus ACKs (Lo
+					que llamamos por 'conocerlo'). Al igual que los mensajes de reconocimiento, estos mensajes tienen un
+					destinatario, y la función del servidor será simplemente reenviarlo a esa ID */
+
+					// Recibimos la estructura y comprobamos errores
+					rc = recv(socket, &nombre_request, sizeof(nombre_request), 0);
+					if(rc < 0)
+					{
+						perror("recv() error");
+						break;
+					}
+
+					// Copiamos el tipo de mensaje leído al primer byte del buffer
+					memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+
+					// Copiamos el mismo mensaje recibido a partir del segundo byte del buffer
+					memcpy(&buffer[1], &nombre_request, sizeof(nombre_request));
+
+					// Enviamos a su destinatario el mensaje completo con su identificador de tipo
+					rc = send(nombre_request.cliente_id_destino, buffer, sizeof(tipo_mensaje) + sizeof(nombre_request), 0);
+
+					if(rc < 0)
+					{
+						perror("send() error");
+						break;
+					}
+					break;
+
+				case MENSAJE_NOMBRE_REPLY:
+
+					/* Los mensajes de respuesta de nombre son idénticos para el servidor. La única diferencia reside en
+					que estos llevan además un campo de nombre, que usará el cliente para anotarse la identidad de su 
+					vecino. Se actuará igual que en el caso de petición de nombre o de mensaje de reconocimiento */
+
+					// Recibimos la estructura y comprobamos errores
+					rc = recv(socket, &nombre_reply, sizeof(nombre_reply), 0);
+					if(rc < 0)
+					{
+						perror("recv() error");
+						break;
+					}
+
+					// Copiamos el tipo de mensaje leído al primer byte del buffer
+					memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
+
+					// Copiamos el mismo mensaje recibido a partir del segundo byte del buffer
+					memcpy(&buffer[1], &nombre_reply, sizeof(nombre_reply));
+					
+					// Devolvemos la respuesta al destino 
+					rc = send(nombre_reply.cliente_id_destino, buffer, sizeof(tipo_mensaje) + sizeof(nombre_reply), 0);
+
+					if(rc < 0)
+					{
+						perror("send() error");
+						break;
+					}
+					break;
+				default:
+
+					/* En caso de no reconocer el tipo de mensaje que nos ha llegado, mostramos un mensaje de error */
+					printf("[ERROR] Mensaje no reconocido. Socket: %d. Mensaje: %02X\n", socket, tipo_mensaje);
 				}
-				tipo_mensaje = MENSAJE_NOMBRE_REPLY;
-				memcpy(&buffer[0], &tipo_mensaje, sizeof(tipo_mensaje));
-				memcpy(&buffer[1], &nombre_reply, sizeof(nombre_reply));
-				mensaje_size = sizeof(tipo_mensaje) + sizeof(nombre_reply);
-				send(nombre_reply.cliente_id_destino, buffer, mensaje_size, 0);
-				break;
-			default:
-				printf("Mensaje no reconocido. Identificador de socket: %d. Mensaje leído: %02X\n", socket, tipo_mensaje);
 			}
 		}
 	} while (!cerrar_hilo);
@@ -258,7 +380,10 @@ void grupo_thread (int epoll_thread_fd)
 
 void nueva_conexion_thread (int new_sd)
 {
-
+	/* Este es el hilo que se lanzará cada vez que el servidor reciba una nueva conexión. Cuando lo haga, recibirá un
+	nuevo descriptor de socket con la llamada a accept(), y se le pasará a esta función para que procese la conexión a
+	un grupo del nuevo cliente. Se ha decidido paralelizar la conexión al servidor para no bloquearla cuando algún 
+	cliente se quedase a medias entre la conexión TCP y el envío del mensaje de solicitud de grupo */
 
     struct mensaje_conexion 					nuevo_mensaje_conexion;
     struct mensaje_conexion_satisfactoria 		conexion_satisfactoria;
@@ -266,32 +391,45 @@ void nueva_conexion_thread (int new_sd)
     epoll_event 								event;
     _tipo_mensaje 								tipo_mensaje;
 
+    /* Rellenamos la estructura event, que luego se le tendrá que pasar a epoll_ctl para que notifique a su grupo
+	de los nuevos mensajes del usuario */
+
+	// Relenamos el campo de descriptor de socket
     event.data.fd = new_sd;
+
+    // Y el de tipo de eventos. En este caso, sólo nos interesa cuando el cliente nos haya enviado algo
 	event.events = EPOLLIN;
 
-    /* Primero leemos un mensaje que nos indicará que tipo de mensaje acaba de enviarnos el cliente */
+    // A continuación leemos un mensaje que nos indicará que tipo de mensaje acaba de enviarnos el cliente 
     rc = recv(new_sd, &tipo_mensaje, sizeof(_tipo_mensaje),0);
     if (rc < 0)
     {
         perror("recv() failed");
         close_conn = TRUE;
     }
+
+    if (rc == 0)
+    {
+       close_conn = TRUE;
+
+    }
     
-    //printf("\n--------------------------------------------\n");
-	//printf("Nueva conexión.\n");
     /* Una vez recibido el tipo de mensaje, vamos a leer a qué grupo desea unirse en caso de ser un mensaje de
     conexión. Usamos un flujo try/catch ya que intentaremos añadir el cliente al set de su grupo. En caso de que
-    el grupo no exista, saltará una excepción, donde crearemos el nuevo grupo */
+    el grupo no exista, saltará una excepción, donde crearemos el nuevo grupo. */
 	try
 	{
 		// Antes que nada comprobamos que es el mensaje que esperamos. Si no, no haremos nada */
-		if(tipo_mensaje == MENSAJE_CONEXION)
+		if(tipo_mensaje != MENSAJE_CONEXION)
 		{
-			//printf("Mensaje de conexión a grupo recibido.\n");
+			close_conn = TRUE;
+		} else {
 
 			// En caso de ser el mensaje esperado, esperamos a que nos envíe la estructura del mensaje
 			rc = recv(new_sd, &nuevo_mensaje_conexion, sizeof(mensaje_conexion), 0);
 
+			/* Si hay algún error o se ha cerrado la conexión antes de que recibamos el mensaje de conexión,
+			cerramos la conexión con el cliente y cerramos el hilo de ejecución */
    			if (rc < 0)
             {
                 perror("recv() failed");
@@ -303,12 +441,20 @@ void nueva_conexion_thread (int new_sd)
    				close_conn = TRUE;
    			}
 
-   			//printf("Grupo solicitado: %d.\n", nuevo_mensaje_conexion.grupo);
+   			// Si no hemos recibido ningún error, procesamos la petición
+   			if(rc > 0)
+   			{
+	   			/* Ahora es cuando empieza la sección crítica de la conexión y deberemos hacer un bloqueo. Como ahora
+	   			ya hemos leído todos los datos necesários del cliente, no dependemos de él para generar una respuesta y
+	   			procesar su petición, así que estamos seguros de que no nos va a bloquear la conexión de otros clientes */
+	   			mutex_conexion.lock();
 
-   			// Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo
-   			mtx.lock();
-   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);
-   			//printf("Miembro añadido satisfactoriamente a grupo.\n");	
+	   			/* Una vez recibida la estructura del mensaje de conexión, añadimos el cliente al set de su grupo. Esto 
+	   			es posible gracias a que el cliente indica en su mensaje de conexión a qué grupo desea unirse. En caso de 
+	   			que el método map<key,value>.at() no encuentre la clave (Es decir, no exista el grupo), saltará una excepción
+	   			std::out_of_range */
+	   			epoll_ctl(grupos_sets.at(nuevo_mensaje_conexion.grupo), EPOLL_CTL_ADD, new_sd, &event);	
+   			}
    		}
 
 	} catch (const std::out_of_range& oor) {
@@ -316,32 +462,59 @@ void nueva_conexion_thread (int new_sd)
 		/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
 		asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
 		cliente. Además añadimos el hilo al vector de hilos de grupos */
-		//printf("Grupo no existía. Creando GRUPO %d.\n", nuevo_mensaje_conexion.grupo);
 		int new_epoll_fd;
 		new_epoll_fd = epoll_create1(0);
+
+		// Asociamos la nueva ID de grupo con su descriptor epoll
 		grupos_sets.insert(pair<uint8_t,int>(nuevo_mensaje_conexion.grupo,new_epoll_fd));
+
+		// Creamos un nuevo hilo y lo insertamos en el vector de hilos
 		grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
+
+		// Con el grupo creado, registramos los eventos del nuevo cliente
 		epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, new_sd, &event);
 	}
 
-    if (rc == 0)
-    {
-       close_conn = TRUE;
-
-    }
-
+	// Si en algún momento hemos obtenido error, cerramos la conexión
     if (close_conn)
     {
         close(new_sd);
-    }
+    } else {
+    	/* En caso que no hayamos encontrado error en ningún sitio, procedemos a enviar de vuelta un mensaje de 
+    	conexión satisfactoria, enviándole al cliente su ID y permitiendo que envíe ya su primer mensaje de
+    	saludo y, a partir de ahí, empieze los ciclos de mensajes */
 
-    tipo_mensaje = MENSAJE_CONEXION_SATISFACTORIA;
-	_tipo_mensaje buffer[50];
-	buffer[0] = tipo_mensaje;
-	conexion_satisfactoria.cliente_id = new_sd;
-	memcpy(&buffer[1], &conexion_satisfactoria, sizeof(mensaje_conexion_satisfactoria));
-	send(new_sd, buffer, sizeof(_tipo_mensaje) + sizeof(mensaje_conexion_satisfactoria),0);
-	mtx.unlock();
+    	uint8_t buffer[50];
+
+    	// Construimos el tipo de mensaje a devolver
+	    tipo_mensaje = MENSAJE_CONEXION_SATISFACTORIA;
+		
+		// Copiamos el tipo de mensaje al primer byte del buffer
+		buffer[0] = tipo_mensaje;
+
+		/* Rellenamos el campo de ID con el descriptor de socket del cliente en el servidor. La asignación de ID es
+		así para agilizar las tareas del servidor en el envío de mensajes a un sólo destinatario, ya que si el usuario
+		conoce las IDs de sus vecinos, también conoce los sockets por los que están conectados en el servidor, pudiendo
+		enviar esta información en sus paquetes y librando al servidor de la carga de relacionar cada ID con su socket */
+		conexion_satisfactoria.cliente_id = new_sd;
+
+		// Copiamos la estructura del mensaje a partir del segundo byte
+		memcpy(&buffer[1], &conexion_satisfactoria, sizeof(mensaje_conexion_satisfactoria));
+
+		/* Antes de enviar los datos de vuelta, ya que no vamos a hacer ningún cálculo, desbloqueamos el mútex para
+		que otros hilos de conexión puedan trabajar con la información de los grupos */
+		mutex_conexion.unlock();
+
+		// Enviamos los datos de vuelta al cliente
+		rc = send(new_sd, buffer, sizeof(_tipo_mensaje) + sizeof(mensaje_conexion_satisfactoria),0);
+
+		if (rc < 0)
+	    {
+	        perror("send() failed");
+	        close_conn = TRUE;
+	    }
+		
+	}
 }
 
 /* Función principal del servidor. La función corre sobre el hilo principal, y no realiza ninguna
@@ -376,8 +549,8 @@ int main (int argc, char *argv[])
       exit(-1);
    }
 
-   // Finalmente, ponemos el socket a escuchar, con una cola de 256 conexiones 
-   if (listen(listen_sd, 256) < 0)					// en espera
+   // Finalmente, ponemos el socket a escuchar, con una cola de 256 conexiones en espera
+   if (listen(listen_sd, 256) < 0)					
    {
       perror("listen() failed");
       close(listen_sd);
@@ -387,6 +560,9 @@ int main (int argc, char *argv[])
    int epoll_fd;
    struct epoll_event event;
    struct epoll_event *events;
+
+   /* Creamos un identificador epoll. Como es el hilo principal, la única función va a ser escuchar nuevas
+   conexiones, así que solo pondremos a la escucha el socket de escucha */
 
    epoll_fd = epoll_create1(0);
 
@@ -406,6 +582,7 @@ int main (int argc, char *argv[])
    {
    		epoll_n = epoll_wait(epoll_fd, events, MAXEVENTS, -1);
 
+   		// Por cada evento que devuelva epoll, comprobamos que no es un error
 		for (int i = 0; i < epoll_n; i++)
 		{
 		    if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) || (!(events[i].events & EPOLLIN)))
@@ -414,7 +591,11 @@ int main (int argc, char *argv[])
 		        continue;
 		    }
 
+		    /* En caso de haber recibido datos correctamente, llamamos a accept() para que nos devuelva el identificador
+		    de socket del nuevo cliente */
 		    new_sd = accept(listen_sd, NULL, NULL);
+
+		    // Si da fallo, pasamos al siguiente evento y mostramos el error por consola
             if (new_sd < 0)
             {
             	perror("accept() failed");
@@ -430,6 +611,8 @@ int main (int argc, char *argv[])
 		}
     } while (TRUE);
 
+
+    // El hilo principal sólo se encarga del socket de escucha, así que su responsabilidad es solamente cerrar ese
     close(listen_sd);
 
     return 0;
