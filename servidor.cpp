@@ -187,7 +187,7 @@ void grupo_thread (int epoll_thread_fd)
 					igual a el byte de tipo más la estructura mandada */
 					if (send(clientes[j], buffer, sizeof(_tipo_mensaje) + sizeof(desconexion), 0)< 0)
 					{
-						perror("send() error ");
+						perror("[DESCONEXIÓN] send() error ");
 						printf("Socket conflictivo: %d\n", clientes[j]);
 					}
 
@@ -232,7 +232,7 @@ void grupo_thread (int epoll_thread_fd)
 
 						if(rc < 0)
 						{
-							perror("send() error");
+							perror("[SALUDO] send() error");
 							break;
 						}
 					}
@@ -270,7 +270,7 @@ void grupo_thread (int epoll_thread_fd)
 
 							if(rc < 0)
 							{
-								perror("send() error");
+								perror("[POSICIÓN] send() error");
 								break;
 							}
 						}
@@ -298,12 +298,13 @@ void grupo_thread (int epoll_thread_fd)
 					// Copiamos la misma estructura de mensaje a partir del segundo byte del buffer
 					memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
 
-					// Y simplemente enviamos el paquete de vuelta al campo destino
+					// Y simplemente enviamos el paquete de vuelta al campo destino en caso de ser un cliente real
+
 					rc = send(reconocimiento.cliente_id_destino, buffer, sizeof(tipo_mensaje) + sizeof(reconocimiento), 0);
 
 					if(rc < 0)
 					{
-						perror("send() error");
+						perror("[RECONOCIMIENTO] send() error");
 						break;
 					}
 					break;
@@ -334,7 +335,7 @@ void grupo_thread (int epoll_thread_fd)
 
 					if(rc < 0)
 					{
-						perror("send() error");
+						perror("[NOMBRE_REQUEST] send() error");
 						break;
 					}
 					break;
@@ -364,7 +365,7 @@ void grupo_thread (int epoll_thread_fd)
 
 					if(rc < 0)
 					{
-						perror("send() error");
+						perror("[NOMBRE_REPLY] send() error");
 						break;
 					}
 					break;

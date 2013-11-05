@@ -75,7 +75,7 @@ int cliente_thread(int grupo, string nombre_fichero)
     
 	dir.sin_family = PF_INET;
 	dir.sin_port = htons(12345);
-    inet_aton("192.168.1.141",&dir.sin_addr);
+    inet_aton("127.0.0.1",&dir.sin_addr);
 
 	if (connect(server_socket, (struct sockaddr *)&dir, sizeof(struct sockaddr_in))<0)
 	{
@@ -172,7 +172,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 	miPosicion.posicion_y = 150;
 	miPosicion.posicion_z = -200;
 
-	int64_t final,inicio = time_ms();
+	int64_t ticker,final,inicio = time_ms();
 
 	/* El cliente sólo escucha mensajes del servidor. Al escuchar un sólo socket, la diferencia entre epoll y select
 	 no es notable, así que elegimos select por ser un código más portable y reutilizable en otros sistemas */
@@ -202,9 +202,10 @@ int cliente_thread(int grupo, string nombre_fichero)
     map<int, cliente_info> clientes_conocidos, clientes_copia;
 
     //fichero << cliente_id << endl;
+    ticker = time_ms();
 
     // Bucle principal del cliente
-	while(true)
+	while(secuencia < 100)
 	{
 		// Primero ejecutamos las dos instrucciones necesarias para el select
 		memcpy(&fd_copy, &fd, sizeof(fd));
@@ -212,7 +213,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 		/* La variable nuevo_ciclo estará activada cuando toque hacer un nuevo ciclo. Esto es, cuando tengamos todos
 		los mensajes de reconocimiento del ciclo actual */
-		if(nuevo_ciclo)
+		if((time_ms()-ticker) > 500)
 		{
 			/*if(secuencia+1 == 200)
 				break;*/
@@ -236,7 +237,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 			}
 
 			// Reiniciamos el contador de tiempo para saber cuanto tiempo durará el siguiente ciclo
-			//ticker = time_ms();
+			ticker = time_ms();
 
 			// Copiamos los clientes conocidos, aquellos de los que deberemos esperar sus ACKs
 			clientes_copia = clientes_conocidos;
