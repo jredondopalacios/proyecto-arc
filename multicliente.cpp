@@ -307,9 +307,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
 
 						//fichero << "Recibida actualización de posición. Enviando reconocimiento a ID " << posicion.cliente_id_origen << endl;
-						report_mutex.lock();
-						cout << "HiloID: " << cliente_id << ". Enviando ACK a Dest: " << reconocimiento.cliente_id_destino << endl;
-						report_mutex.unlock();
+						//report_mutex.lock();
+						//cout << "HiloID: " << cliente_id << ". Enviando ACK a Dest: " << reconocimiento.cliente_id_destino << endl;
+						//report_mutex.unlock();
 						//cout << "[ID" << cliente_id << "] MENSAJE_POSICION de " << posicion.cliente_id_origen << ".\n";
 						rc = send(server_socket, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
 
@@ -386,6 +386,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						// Leemos el resto del mensaje
 						rc = recv(server_socket, &reconocimiento, sizeof(reconocimiento), 0);
+
 						if(rc <= 0)
 						{
 							perror("[MENSAJE_RECONOCIMIENTO] recv() error");
@@ -432,7 +433,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 						}
 
 
-						if(clientes_conocidos.find(reconocimiento.cliente_id_origen) != clientes_conocidos.end())
+						if(clientes_conocidos.find(reconocimiento.cliente_id_origen) == clientes_conocidos.end())
 						{
 						// En caso de fallo, construímos mensaje de petición de información
 							buffer[0] = MENSAJE_NOMBRE_REQUEST;
@@ -552,6 +553,13 @@ int cliente_thread(int grupo, string nombre_fichero)
 						{
 							clientes_conocidos.insert(pair<int,cliente_info>(id_aux, reply_info));
 						}
+
+						if(clientes_conocidos.size() > 9)
+						{
+							report_mutex.lock();
+							cout << "[ID" << cliente_id << " ERROR] El número de clientes conocidos es de " << clientes_conocidos.size() << endl;
+							report_mutex.unlock();
+						}
 						/*for(uint j=0; j < clientes_conocidos.size(); j++)
 						{
 							if(clientes_conocidos[j].id == nombre_reply.cliente_id_origen)
@@ -660,7 +668,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 	cout << "Tiempo medio por ciclo: " << ((final - inicio)  / (1000 * (secuencia + 1.0))) << " segundos." << endl;
 	report_mutex.unlock();
 
-	close(server_socket);
+	//close(server_socket);
 
 	return 0;
 }
