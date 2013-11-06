@@ -204,8 +204,9 @@ int cliente_thread(int grupo, string nombre_fichero)
     //fichero << cliente_id << endl;
     ticker = time_ms();
 
-	
-
+    report_mutex.lock();
+    cout << "Empezando HiloID: " << cliente_id << endl;
+    report_mutex.unlock();
     // Bucle principal del cliente
 	while(secuencia < 100)
 	{
@@ -217,7 +218,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 		los mensajes de reconocimiento del ciclo actual */
 		if(nuevo_ciclo)
 		{
-
+			report_mutex.lock();
+			//cout << "HiloID: " << cliente_id << ". Empezando Ciclo " << secuencia << endl;
+			report_mutex.unlock();
 			/*if(secuencia+1 == 200)
 				break;*/
 			//fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
@@ -304,6 +307,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
 
 						//fichero << "Recibida actualización de posición. Enviando reconocimiento a ID " << posicion.cliente_id_origen << endl;
+						report_mutex.lock();
+						cout << "HiloID: " << cliente_id << ". Enviando ACK a Dest: " << reconocimiento.cliente_id_destino << endl;
+						report_mutex.unlock();
 						//cout << "[ID" << cliente_id << "] MENSAJE_POSICION de " << posicion.cliente_id_origen << ".\n";
 						rc = send(server_socket, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
 

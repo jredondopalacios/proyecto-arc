@@ -53,6 +53,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <mutex>
+#include <iostream>
 
 #include "mensajes.h"
 
@@ -299,6 +300,7 @@ void grupo_thread (int epoll_thread_fd)
 					memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
 
 					// Y simplemente enviamos el paquete de vuelta al campo destino en caso de ser un cliente real
+					cout << "Recibido ACK de " << socket << " hacia " << reconocimiento.cliente_id_destino << endl;
 
 					rc = send(reconocimiento.cliente_id_destino, buffer, sizeof(tipo_mensaje) + sizeof(reconocimiento), 0);
 
