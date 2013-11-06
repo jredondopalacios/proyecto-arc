@@ -204,6 +204,8 @@ int cliente_thread(int grupo, string nombre_fichero)
     //fichero << cliente_id << endl;
     ticker = time_ms();
 
+	
+
     // Bucle principal del cliente
 	while(secuencia < 100)
 	{
@@ -213,8 +215,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 		/* La variable nuevo_ciclo estará activada cuando toque hacer un nuevo ciclo. Esto es, cuando tengamos todos
 		los mensajes de reconocimiento del ciclo actual */
-		if((time_ms()-ticker) > 500)
+		if(nuevo_ciclo)
 		{
+
 			/*if(secuencia+1 == 200)
 				break;*/
 			//fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
@@ -231,7 +234,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 			if(rc <= 0)
 			{
-				perror("send() error");
+				perror("[MENSAJE_POSICION] send() error");
 				close(server_socket);
 				return 0;
 			}
@@ -245,6 +248,8 @@ int cliente_thread(int grupo, string nombre_fichero)
 			/*fichero << "Se necesitan encontrar " << clientes_copia.size() << " ACKs coincidentes para siguiente ciclo." << endl;
 			if(clientes_copia.empty() && (secuencia > 70))
 				break;*/
+		} else {
+			//cout << "Soy el ID: " << cliente_id << " y me faltan " << clientes_copia.size() << " ACKs." << endl;
 		}
 
 
@@ -261,7 +266,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 				if(rc <= 0)
 				{
-					perror("recv() error");
+					perror("[TIPO_MENSAJE] recv() error");
 					close(server_socket);
 					return 0;
 				}
@@ -280,7 +285,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						if(rc <= 0)
 						{
-							perror("recv() error");
+							perror("[MENSAJE_POSICION] recv() error");
 							close(server_socket);
 							return 0;
 						}
@@ -299,11 +304,12 @@ int cliente_thread(int grupo, string nombre_fichero)
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
 
 						//fichero << "Recibida actualización de posición. Enviando reconocimiento a ID " << posicion.cliente_id_origen << endl;
+						//cout << "[ID" << cliente_id << "] MENSAJE_POSICION de " << posicion.cliente_id_origen << ".\n";
 						rc = send(server_socket, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
 
 						if(rc <= 0)
 						{
-							perror("send() error");
+							perror("[MENSAJE_RECONOCIMIENTO] send() error");
 							close(server_socket);
 							return 0;
 						}
@@ -320,7 +326,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 							clientes_conocidos.at(posicion.cliente_id_origen).posicion_z = posicion.posicion_z;
 						} catch (const std::out_of_range& oor) {
 
-							// En caso de fallo, construímos mensaje de petición de información
+							/*// En caso de fallo, construímos mensaje de petición de información
 							buffer[0] = MENSAJE_NOMBRE_REQUEST;
 
 							// Indicamos quienes somos y de quién queremos la información
@@ -332,14 +338,14 @@ int cliente_thread(int grupo, string nombre_fichero)
 							//fichero << "Enviando petición de información a ID " << posicion.cliente_id_origen << endl;
 
 							// Y mandamos el mensaje al servidor
-							rc = send(server_socket, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+							//rc = send(server_socket, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
 
 							if(rc <= 0)
 							{
 								perror("send() error");
 								close(server_socket);
 								return 0;
-							}
+							}*/
 						}
 
 						/*
@@ -376,7 +382,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 						rc = recv(server_socket, &reconocimiento, sizeof(reconocimiento), 0);
 						if(rc <= 0)
 						{
-							perror("recv() error");
+							perror("[MENSAJE_RECONOCIMIENTO] recv() error");
 							close(server_socket);
 							return 0;
 						}
@@ -418,6 +424,31 @@ int cliente_thread(int grupo, string nombre_fichero)
 							clientes_copia = clientes_conocidos;
 							nuevo_ciclo = true;
 						}
+
+
+						if(clientes_conocidos.find(reconocimiento.cliente_id_origen) != clientes_conocidos.end())
+						{
+						// En caso de fallo, construímos mensaje de petición de información
+							buffer[0] = MENSAJE_NOMBRE_REQUEST;
+
+							// Indicamos quienes somos y de quién queremos la información
+							nombre_request.cliente_id_origen = cliente_id;
+							nombre_request.cliente_id_destino = reconocimiento.cliente_id_origen;
+
+							// Copiamos la información en el buffer
+							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
+							//fichero << "Enviando petición de información a ID " << posicion.cliente_id_origen << endl;
+
+							// Y mandamos el mensaje al servidor
+							rc = send(server_socket, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+
+							if(rc <= 0)
+							{
+								perror("[MENSAJE_NOMBRE_REQUEST] send() error");
+								close(server_socket);
+								return 0;
+							}
+						}
 						break;
 						}
 					case MENSAJE_SALUDO:
@@ -428,7 +459,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						if(rc <= 0)
 						{
-							perror("recv() error");
+							perror("[MENSAJE_SALUDO] recv() error");
 							close(server_socket);
 							return 0;
 						}
@@ -456,7 +487,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						if(rc <= 0)
 						{
-							perror("recv() error");
+							perror("[MENSAJE_NOMBRE_REQUEST] recv() error");
 							close(server_socket);
 							return 0;
 						}
@@ -477,7 +508,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						if(rc <= 0)
 						{
-							perror("send() error");
+							perror("[MENSAJE_NOMBRE_REPLY] send() error");
 							close(server_socket);
 							return 0;
 						}
@@ -496,7 +527,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						if(rc <= 0)
 						{
-							perror("recv() error");
+							perror("[MENSAJE_NOMBRE_REPLY] recv() error");
 							close(server_socket);
 							return 0;
 						}
@@ -539,7 +570,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						if(rc <= 0)
 						{
-							perror("recv() error");
+							perror("[MENSAJE_DESCONEXION] recv() error");
 							close(server_socket);
 							return 0;
 						}
@@ -617,7 +648,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 	final = time_ms();
 	// Bloqueamos la ejecución para evitar que se solape el texto en la salida estándar
 	report_mutex.lock();
-	cout << "El Hilo con ID " << cliente_id << "ha terminado." << endl;
+	cout << "El Hilo con ID " << cliente_id << " ha terminado." << endl;
 	cout << "Tiempo medio por ciclo: " << ((final - inicio)  / (1000 * (secuencia + 1.0))) << " segundos." << endl;
 	report_mutex.unlock();
 
