@@ -548,8 +548,10 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						// Añadimos el nuevo cliente al contenedor
 						int id_aux = nombre_reply.cliente_id_origen;
-						clientes_conocidos.insert(pair<int,cliente_info>(id_aux, reply_info));
-
+						if(clientes_conocidos.find(id_aux) == clientes_conocidos.end())
+						{
+							clientes_conocidos.insert(pair<int,cliente_info>(id_aux, reply_info));
+						}
 						/*for(uint j=0; j < clientes_conocidos.size(); j++)
 						{
 							if(clientes_conocidos[j].id == nombre_reply.cliente_id_origen)
