@@ -105,7 +105,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 		// Si se cierra la conexión o hay un error, cerramos el hilo
 		if(rc <= 0)
 		{
-			perror("send() error");
+			perror("[MENSAJE_CONEXION] send() error");
 			close(server_socket);
 			return 0;
 		}
@@ -115,7 +115,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 		if(rc <= 0)
 		{
-			perror("recv() error");
+			perror("[MENSAJE_CONEXION] recv() error");
 			close(server_socket);
 			return 0;
 		}
