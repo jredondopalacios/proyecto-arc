@@ -219,7 +219,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 		if(nuevo_ciclo)
 		{
 			report_mutex.lock();
-			//cout << "HiloID: " << cliente_id << ". Empezando Ciclo " << secuencia << endl;
+			cout << "[ID" << cliente_id << "] Empezando Ciclo N." << secuencia << endl;
 			report_mutex.unlock();
 			/*if(secuencia+1 == 200)
 				break;*/
@@ -248,6 +248,10 @@ int cliente_thread(int grupo, string nombre_fichero)
 			// Copiamos los clientes conocidos, aquellos de los que deberemos esperar sus ACKs
 			clientes_copia = clientes_conocidos;
 			nuevo_ciclo = false;
+
+			report_mutex.lock();
+			cout << "[ID" << cliente_id << "] Esperando " << clientes_copia.size() << " mensajes de reconocimiento" << endl;
+			report_mutex.unlock();
 			/*fichero << "Se necesitan encontrar " << clientes_copia.size() << " ACKs coincidentes para siguiente ciclo." << endl;
 			if(clientes_copia.empty() && (secuencia > 70))
 				break;*/
@@ -293,6 +297,11 @@ int cliente_thread(int grupo, string nombre_fichero)
 							return 0;
 						}
 
+						report_mutex.lock();
+						cout << "[ID" << cliente_id << "] POSICIÓN. ID: " << posicion.cliente_id_origen << 
+																	". SECUENCIA: " << posicion.numero_secuencia << endl;
+						report_mutex.unlock();
+
 						// Empezamos a construir el mensaje de reconocimiento con el byte de tipo
 						buffer[0] = MENSAJE_RECONOCIMIENTO;
 
@@ -311,6 +320,10 @@ int cliente_thread(int grupo, string nombre_fichero)
 						//cout << "HiloID: " << cliente_id << ". Enviando ACK a Dest: " << reconocimiento.cliente_id_destino << endl;
 						//report_mutex.unlock();
 						//cout << "[ID" << cliente_id << "] MENSAJE_POSICION de " << posicion.cliente_id_origen << ".\n";
+						report_mutex.lock();
+						cout << "[ID" << cliente_id << "] ENVÍO DE ACK. ID_DEST: " << reconocimiento.cliente_id_destino << 
+																". SECUENCIA: " << reconocimiento.numero_secuencia << endl;
+						report_mutex.unlock();
 						rc = send(server_socket, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
 
 						if(rc <= 0)
@@ -394,6 +407,11 @@ int cliente_thread(int grupo, string nombre_fichero)
 							return 0;
 						}
 
+						report_mutex.lock();
+						cout << "[ID" << cliente_id << "] RECIBO DE RECONOCIMIENTO. ID_ORIG: " << reconocimiento.cliente_id_origen <<
+															". SECUENCIA: " << reconocimiento.numero_secuencia << endl;
+						report_mutex.unlock();
+
 						// Comprobamos que corresponde al último mensaje de posición enviado
 						if(reconocimiento.numero_secuencia == secuencia)
 						{
@@ -403,6 +421,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 							{
 								// Elimiamos el cliente de la lista de reconocimientos esperados
 								clientes_copia.erase(reconocimiento.cliente_id_origen);
+								report_mutex.lock();
+								cout << "[ID" << cliente_id << "] ACK ESPERADO. QUEDAN " << clientes_copia.size() << endl;
+								report_mutex.unlock();
 							}
 							/*for(uint j=0; j < clientes_copia.size(); j++)
 							{
@@ -435,7 +456,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						if(clientes_conocidos.find(reconocimiento.cliente_id_origen) == clientes_conocidos.end())
 						{
-						// En caso de fallo, construímos mensaje de petición de información
+						// En caso de no encontrarlo, construímos mensaje de petición de información
 							buffer[0] = MENSAJE_NOMBRE_REQUEST;
 
 							// Indicamos quienes somos y de quién queremos la información
@@ -447,6 +468,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 							//fichero << "Enviando petición de información a ID " << posicion.cliente_id_origen << endl;
 
 							// Y mandamos el mensaje al servidor
+
 							rc = send(server_socket, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
 
 							if(rc <= 0)
@@ -554,12 +576,12 @@ int cliente_thread(int grupo, string nombre_fichero)
 							clientes_conocidos.insert(pair<int,cliente_info>(id_aux, reply_info));
 						}
 
-						if(clientes_conocidos.size() > 9)
+						/*if(clientes_conocidos.size() > 9)
 						{
 							report_mutex.lock();
 							cout << "[ID" << cliente_id << " ERROR] El número de clientes conocidos es de " << clientes_conocidos.size() << endl;
 							report_mutex.unlock();
-						}
+						}*/
 						/*for(uint j=0; j < clientes_conocidos.size(); j++)
 						{
 							if(clientes_conocidos[j].id == nombre_reply.cliente_id_origen)
@@ -616,6 +638,11 @@ int cliente_thread(int grupo, string nombre_fichero)
 							break;
 						}
 
+						report_mutex.lock();
+						cout << "[ID" << cliente_id << "] DESCONEXION. ID: " << desconexion.cliente_id_origen << 
+													". QUEDAN " << clientes_copia.size() << " MENSAJES ACK." << endl;
+						report_mutex.unlock();
+
 						/*for(uint j=0; j < clientes_conocidos.size(); j++)
 						{
 							if(clientes_conocidos[j].id == desconexion.cliente_id_origen)
@@ -651,6 +678,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 						break;
 						}
 					default:
+						report_mutex.lock();
+						cout << "[ID" << cliente_id << " ERROR] Mensaje no reconocido." << endl;
+						report_mutex.unlock();
 						break;
 				}
 			}
@@ -668,7 +698,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 	cout << "Tiempo medio por ciclo: " << ((final - inicio)  / (1000 * (secuencia + 1.0))) << " segundos." << endl;
 	report_mutex.unlock();
 
-	//close(server_socket);
+	close(server_socket);
 
 	return 0;
 }
