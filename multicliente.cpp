@@ -222,7 +222,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 			cout << "[ID" << cliente_id << "] Empezando Ciclo N." << secuencia << endl;
 			report_mutex.unlock();
 
-			if(secuencia+1 == 200)
+			if(secuencia+1 == 100)
 				break;
 			//fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
 
