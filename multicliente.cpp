@@ -208,7 +208,7 @@ int cliente_thread(int grupo, string nombre_fichero)
     cout << "Empezando HiloID: " << cliente_id << endl;
     report_mutex.unlock();
     // Bucle principal del cliente
-	while(secuencia < 100)
+	while(true)
 	{
 		// Primero ejecutamos las dos instrucciones necesarias para el select
 		memcpy(&fd_copy, &fd, sizeof(fd));
@@ -221,8 +221,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 			report_mutex.lock();
 			cout << "[ID" << cliente_id << "] Empezando Ciclo N." << secuencia << endl;
 			report_mutex.unlock();
-			/*if(secuencia+1 == 200)
-				break;*/
+
+			if(secuencia+1 == 200)
+				break;
 			//fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
 
 			// Copiamos al primer bit del buffer el número del tipo de mensaje de posición
@@ -252,6 +253,11 @@ int cliente_thread(int grupo, string nombre_fichero)
 			report_mutex.lock();
 			cout << "[ID" << cliente_id << "] Esperando " << clientes_copia.size() << " mensajes de reconocimiento" << endl;
 			report_mutex.unlock();
+
+			if(clientes_copia.size() == 0)
+			{
+				nuevo_ciclo = true;
+			}
 			/*fichero << "Se necesitan encontrar " << clientes_copia.size() << " ACKs coincidentes para siguiente ciclo." << endl;
 			if(clientes_copia.empty() && (secuencia > 70))
 				break;*/
@@ -615,6 +621,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 						//fichero << "Mensaje de desconexión." << endl;
 
+
 						// Buscamos el cliente desconectado en el contendor de la copia
 						map<int, cliente_info>::iterator busqueda = clientes_copia.find(desconexion.cliente_id_origen);
 
@@ -625,7 +632,10 @@ int cliente_thread(int grupo, string nombre_fichero)
 							del switch */
 							clientes_copia.erase(busqueda);
 							clientes_conocidos.erase(desconexion.cliente_id_origen);
-							break;
+							report_mutex.lock();
+							cout << "[ID" << cliente_id << "] DESCONEXION. ID: " << desconexion.cliente_id_origen << 
+														". QUEDAN " << clientes_copia.size() << " MENSAJES ACK." << endl;
+							report_mutex.unlock();
 						}
 
 						// Si no está en la copia, buscamos en el original
@@ -634,14 +644,13 @@ int cliente_thread(int grupo, string nombre_fichero)
 						//Si está en el original, borramos
 						if(busqueda != clientes_conocidos.end())
 						{
+							report_mutex.lock();
+							cout << "[ID" << cliente_id << "] DESCONEXION. ID: " << desconexion.cliente_id_origen << endl;
+							report_mutex.unlock();
 							clientes_conocidos.erase(busqueda);
-							break;
 						}
 
-						report_mutex.lock();
-						cout << "[ID" << cliente_id << "] DESCONEXION. ID: " << desconexion.cliente_id_origen << 
-													". QUEDAN " << clientes_copia.size() << " MENSAJES ACK." << endl;
-						report_mutex.unlock();
+						
 
 						/*for(uint j=0; j < clientes_conocidos.size(); j++)
 						{

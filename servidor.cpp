@@ -58,7 +58,7 @@
 #include "mensajes.h"
 
 #define SERVER_PORT  12345
-#define MAXEVENTS	 10000
+#define MAXEVENTS	 100000
 
 #define TRUE             1
 #define FALSE            0
@@ -131,7 +131,7 @@ void grupo_thread (int epoll_thread_fd)
 		/* Si epoll tiene un error, devolverá negativo */
 		if(desc_ready < 0)
 		{
-			perror("epoll_wait() error");
+			perror("[GRUPO_HILO] epoll_wait() error");
 		}
 
 		/* Si no da error, epoll devuelve el número de descriptores que han disparado los eventos; es decir
@@ -186,11 +186,15 @@ void grupo_thread (int epoll_thread_fd)
 					/* Por cada miembro del grupo, eviamos el byte de tipo de mensaje y el mensaje.
 					En clientes[j] se almacena el socket de cada cliente, le enviamos el buffer y un tamaño
 					igual a el byte de tipo más la estructura mandada */
-					if (send(clientes[j], buffer, sizeof(_tipo_mensaje) + sizeof(desconexion), 0)< 0)
+					do
 					{
-						perror("[DESCONEXIÓN] send() error ");
-						printf("Socket conflictivo: %d\n", clientes[j]);
-					}
+						rc = send(clientes[j], buffer, sizeof(_tipo_mensaje) + sizeof(desconexion), 0);
+						if (rc < 0)
+						{
+							perror("[DESCONEXIÓN] send() error ");
+							printf("Socket conflictivo: %d\n", clientes[j]);
+						}
+					} while(rc < 0);
 
 				}
 				
