@@ -1,3 +1,6 @@
+#ifndef _MENSAJES_H_
+#define _MENSAJES_H_
+
 #define MENSAJE_DESCONEXION					8
 #define MENSAJE_CONEXION 					1
 #define MENSAJE_CONEXION_SATISFACTORIA		2
@@ -11,29 +14,29 @@
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
 
-typedef int 			_cliente_id;
-typedef uint8_t  		_grupo_id;
-typedef uint8_t  		_tipo_mensaje;
+typedef int 			clienteid_t;
+typedef int16_t    		grupoid_t;
+typedef uint8_t  		mensaje_t;
 
 struct mensaje_desconexion {
-	_cliente_id cliente_id_origen;
+	clienteid_t cliente_id_origen;
 };
 
 struct mensaje_conexion {
-	_grupo_id grupo;
+	grupoid_t grupo;
 } __attribute__((packed));
 
 struct mensaje_conexion_satisfactoria {
-	_cliente_id cliente_id;
+	clienteid_t cliente_id;
 } __attribute__((packed));
 
 struct mensaje_saludo {
-	_cliente_id cliente_id_origen;
+	clienteid_t cliente_id_origen;
 	char nombre[NOMBRE_MAX_CHAR];
 } __attribute__((packed));
 
 struct mensaje_posicion {
-	_cliente_id cliente_id_origen;
+	clienteid_t cliente_id_origen;
 	int16_t posicion_x;
 	int16_t posicion_y;
 	int16_t posicion_z;
@@ -41,18 +44,20 @@ struct mensaje_posicion {
 } __attribute__((packed));
 
 struct mensaje_reconocimiento {
-	_cliente_id cliente_id_origen;
-	_cliente_id cliente_id_destino;
+	clienteid_t cliente_id_origen;
+	clienteid_t cliente_id_destino;
 	uint32_t numero_secuencia;
 } __attribute__((packed));
 
 struct mensaje_nombre_request {
-	_cliente_id cliente_id_origen;
-	_cliente_id cliente_id_destino;
+	clienteid_t cliente_id_origen;
+	clienteid_t cliente_id_destino;
 } __attribute__((packed));
 
 struct mensaje_nombre_reply {
-	_cliente_id cliente_id_origen;
-	_cliente_id cliente_id_destino;
+	clienteid_t cliente_id_origen;
+	clienteid_t cliente_id_destino;
 	char nombre[NOMBRE_MAX_CHAR];
 } __attribute__((packed));
+
+#endif

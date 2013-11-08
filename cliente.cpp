@@ -42,7 +42,7 @@ int main(int argc, const char * argv[])
     uint32_t secuencia = 0;
     struct sockaddr_in      dir;
     uint8_t                 buffer[200];
-    _cliente_id				cliente_id;
+    clienteid_t				cliente_id;
     fd_set					fd, fd_copy;
 
     struct mensaje_posicion 			posicion;
@@ -126,7 +126,7 @@ int main(int argc, const char * argv[])
     timeout.tv_usec = 1000;
 
     struct cliente_info {
-    	_cliente_id id;
+    	clienteid_t id;
     	char nombre[NOMBRE_MAX_CHAR];
     	int16_t posicion_x;
 		int16_t posicion_y;
@@ -145,7 +145,7 @@ int main(int argc, const char * argv[])
 			buffer[0] = MENSAJE_POSICION;
 			miPosicion.numero_secuencia = ++secuencia;
 			memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
-			send(sock, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
+			send(sock, buffer, sizeof(miPosicion) + sizeof(mensaje_t), 0);
 			ticker = time_ms();
 			clientes_copia = clientes_conocidos;
 		}
@@ -154,7 +154,7 @@ int main(int argc, const char * argv[])
 		{
 			if(FD_ISSET(sock, &fd_copy))
 			{
-				_tipo_mensaje tipo;
+				mensaje_t tipo;
 				recv(sock, &tipo, sizeof(tipo), 0);
 				bool encontrado;
 				switch(tipo)
@@ -168,7 +168,7 @@ int main(int argc, const char * argv[])
 						reconocimiento.cliente_id_destino = posicion.cliente_id_origen;
 						reconocimiento.numero_secuencia = posicion.numero_secuencia;
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
-						send(sock, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
+						send(sock, buffer, sizeof(reconocimiento) + sizeof(mensaje_t), 0);
 						encontrado = false;
 						for(uint j=0; j < clientes_conocidos.size(); j++)
 						{
@@ -186,7 +186,7 @@ int main(int argc, const char * argv[])
 							nombre_request.cliente_id_origen = cliente_id;
 							nombre_request.cliente_id_destino = posicion.cliente_id_origen;
 							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
-							send(sock, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+							send(sock, buffer, sizeof(nombre_request) + sizeof(mensaje_t), 0);
 						}
 						break;
 					case MENSAJE_RECONOCIMIENTO:
@@ -211,7 +211,7 @@ int main(int argc, const char * argv[])
 							nombre_request.cliente_id_origen = cliente_id;
 							nombre_request.cliente_id_destino = reconocimiento.cliente_id_origen;
 							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
-							send(sock, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+							send(sock, buffer, sizeof(nombre_request) + sizeof(mensaje_t), 0);
 						}
 						if(clientes_copia.empty())
 						{

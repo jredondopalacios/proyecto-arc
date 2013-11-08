@@ -55,7 +55,7 @@ int cliente_thread(int grupo, string nombre_fichero)
     uint32_t 				secuencia = 0;
     struct sockaddr_in      dir;
     uint8_t                 buffer[200];
-    _cliente_id				cliente_id;
+    clienteid_t				cliente_id;
     fd_set					fd, fd_copy;
     bool 					conectado = false;
 
@@ -218,11 +218,11 @@ int cliente_thread(int grupo, string nombre_fichero)
 		los mensajes de reconocimiento del ciclo actual */
 		if(nuevo_ciclo)
 		{
-			report_mutex.lock();
-			cout << "[ID" << cliente_id << "] Empezando Ciclo N." << secuencia << endl;
-			report_mutex.unlock();
+			// report_mutex.lock();
+			// cout << "[ID" << cliente_id << "] Empezando Ciclo N." << secuencia << endl;
+			// report_mutex.unlock();
 
-			if(secuencia+1 == 100)
+			if(secuencia+1 == 3000)
 				break;
 			//fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
 
@@ -234,7 +234,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 			// Copiamos la estructura ya actualizada a continuación del byte de tipo de mensaje
 			memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
-			rc = send(server_socket, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
+			rc = send(server_socket, buffer, sizeof(miPosicion) + sizeof(mensaje_t), 0);
 
 			if(rc <= 0)
 			{
@@ -250,9 +250,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 			clientes_copia = clientes_conocidos;
 			nuevo_ciclo = false;
 
-			report_mutex.lock();
-			cout << "[ID" << cliente_id << "] Esperando " << clientes_copia.size() << " mensajes de reconocimiento" << endl;
-			report_mutex.unlock();
+			// report_mutex.lock();
+			// cout << "[ID" << cliente_id << "] Esperando " << clientes_copia.size() << " mensajes de reconocimiento" << endl;
+			// report_mutex.unlock();
 
 			if(clientes_copia.size() == 0)
 			{
@@ -272,7 +272,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 		{
 			if(FD_ISSET(server_socket, &fd_copy))
 			{
-				_tipo_mensaje tipo;
+				mensaje_t tipo;
 
 				// Recibimos el primer byte, que indica el tipo de mensaje recibido
 				rc = recv(server_socket, &tipo, sizeof(tipo), 0);
@@ -303,10 +303,10 @@ int cliente_thread(int grupo, string nombre_fichero)
 							return 0;
 						}
 
-						report_mutex.lock();
-						cout << "[ID" << cliente_id << "] POSICIÓN. ID: " << posicion.cliente_id_origen << 
-																	". SECUENCIA: " << posicion.numero_secuencia << endl;
-						report_mutex.unlock();
+						// report_mutex.lock();
+						// cout << "[ID" << cliente_id << "] POSICIÓN. ID: " << posicion.cliente_id_origen << 
+						// 											". SECUENCIA: " << posicion.numero_secuencia << endl;
+						// report_mutex.unlock();
 
 						// Empezamos a construir el mensaje de reconocimiento con el byte de tipo
 						buffer[0] = MENSAJE_RECONOCIMIENTO;
@@ -326,11 +326,11 @@ int cliente_thread(int grupo, string nombre_fichero)
 						//cout << "HiloID: " << cliente_id << ". Enviando ACK a Dest: " << reconocimiento.cliente_id_destino << endl;
 						//report_mutex.unlock();
 						//cout << "[ID" << cliente_id << "] MENSAJE_POSICION de " << posicion.cliente_id_origen << ".\n";
-						report_mutex.lock();
-						cout << "[ID" << cliente_id << "] ENVÍO DE ACK. ID_DEST: " << reconocimiento.cliente_id_destino << 
-																". SECUENCIA: " << reconocimiento.numero_secuencia << endl;
-						report_mutex.unlock();
-						rc = send(server_socket, buffer, sizeof(reconocimiento) + sizeof(_tipo_mensaje), 0);
+						// report_mutex.lock();
+						// cout << "[ID" << cliente_id << "] ENVÍO DE ACK. ID_DEST: " << reconocimiento.cliente_id_destino << 
+						// 										". SECUENCIA: " << reconocimiento.numero_secuencia << endl;
+						// report_mutex.unlock();
+						rc = send(server_socket, buffer, sizeof(reconocimiento) + sizeof(mensaje_t), 0);
 
 						if(rc <= 0)
 						{
@@ -363,7 +363,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 							//fichero << "Enviando petición de información a ID " << posicion.cliente_id_origen << endl;
 
 							// Y mandamos el mensaje al servidor
-							//rc = send(server_socket, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+							//rc = send(server_socket, buffer, sizeof(nombre_request) + sizeof(mensaje_t), 0);
 
 							if(rc <= 0)
 							{
@@ -392,7 +392,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 							nombre_request.cliente_id_destino = posicion.cliente_id_origen;
 							memcpy(&buffer[1],&nombre_request, sizeof(nombre_request));
 							//fichero << "Enviando petición de información a ID " << posicion.cliente_id_origen << endl;
-							send(sock, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+							send(sock, buffer, sizeof(nombre_request) + sizeof(mensaje_t), 0);
 						}*/
 						break;
 						}
@@ -413,10 +413,10 @@ int cliente_thread(int grupo, string nombre_fichero)
 							return 0;
 						}
 
-						report_mutex.lock();
-						cout << "[ID" << cliente_id << "] RECIBO DE RECONOCIMIENTO. ID_ORIG: " << reconocimiento.cliente_id_origen <<
-															". SECUENCIA: " << reconocimiento.numero_secuencia << endl;
-						report_mutex.unlock();
+						// report_mutex.lock();
+						// cout << "[ID" << cliente_id << "] RECIBO DE RECONOCIMIENTO. ID_ORIG: " << reconocimiento.cliente_id_origen <<
+						// 									". SECUENCIA: " << reconocimiento.numero_secuencia << endl;
+						// report_mutex.unlock();
 
 						// Comprobamos que corresponde al último mensaje de posición enviado
 						if(reconocimiento.numero_secuencia == secuencia)
@@ -427,9 +427,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 							{
 								// Elimiamos el cliente de la lista de reconocimientos esperados
 								clientes_copia.erase(reconocimiento.cliente_id_origen);
-								report_mutex.lock();
-								cout << "[ID" << cliente_id << "] ACK ESPERADO. QUEDAN " << clientes_copia.size() << endl;
-								report_mutex.unlock();
+								// report_mutex.lock();
+								// cout << "[ID" << cliente_id << "] ACK ESPERADO. QUEDAN " << clientes_copia.size() << endl;
+								// report_mutex.unlock();
 							}
 							/*for(uint j=0; j < clientes_copia.size(); j++)
 							{
@@ -453,7 +453,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 							buffer[0] = MENSAJE_POSICION;
 							miPosicion.numero_secuencia = ++secuencia;
 							memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
-							send(sock, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
+							send(sock, buffer, sizeof(miPosicion) + sizeof(mensaje_t), 0);
 							ticker = time_ms();*/
 							clientes_copia = clientes_conocidos;
 							nuevo_ciclo = true;
@@ -475,7 +475,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 
 							// Y mandamos el mensaje al servidor
 
-							rc = send(server_socket, buffer, sizeof(nombre_request) + sizeof(_tipo_mensaje), 0);
+							rc = send(server_socket, buffer, sizeof(nombre_request) + sizeof(mensaje_t), 0);
 
 							if(rc <= 0)
 							{
@@ -632,10 +632,10 @@ int cliente_thread(int grupo, string nombre_fichero)
 							del switch */
 							clientes_copia.erase(busqueda);
 							clientes_conocidos.erase(desconexion.cliente_id_origen);
-							report_mutex.lock();
-							cout << "[ID" << cliente_id << "] DESCONEXION. ID: " << desconexion.cliente_id_origen << 
-														". QUEDAN " << clientes_copia.size() << " MENSAJES ACK." << endl;
-							report_mutex.unlock();
+							// report_mutex.lock();
+							// cout << "[ID" << cliente_id << "] DESCONEXION. ID: " << desconexion.cliente_id_origen << 
+							// 							". QUEDAN " << clientes_copia.size() << " MENSAJES ACK." << endl;
+							// report_mutex.unlock();
 						}
 
 						// Si no está en la copia, buscamos en el original
@@ -644,9 +644,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 						//Si está en el original, borramos
 						if(busqueda != clientes_conocidos.end())
 						{
-							report_mutex.lock();
-							cout << "[ID" << cliente_id << "] DESCONEXION. ID: " << desconexion.cliente_id_origen << endl;
-							report_mutex.unlock();
+							// report_mutex.lock();
+							// cout << "[ID" << cliente_id << "] DESCONEXION. ID: " << desconexion.cliente_id_origen << endl;
+							// report_mutex.unlock();
 							clientes_conocidos.erase(busqueda);
 						}
 
@@ -680,16 +680,16 @@ int cliente_thread(int grupo, string nombre_fichero)
 							/*buffer[0] = MENSAJE_POSICION;
 							miPosicion.numero_secuencia = ++secuencia;
 							memcpy(&buffer[1], &miPosicion, sizeof(miPosicion));
-							send(sock, buffer, sizeof(miPosicion) + sizeof(_tipo_mensaje), 0);
+							send(sock, buffer, sizeof(miPosicion) + sizeof(mensaje_t), 0);
 							ticker = time_ms();*/
 							clientes_copia = clientes_conocidos;
 						}
 						break;
 						}
 					default:
-						report_mutex.lock();
-						cout << "[ID" << cliente_id << " ERROR] Mensaje no reconocido." << endl;
-						report_mutex.unlock();
+						// report_mutex.lock();
+						// cout << "[ID" << cliente_id << " ERROR] Mensaje no reconocido." << endl;
+						// report_mutex.unlock();
 						break;
 				}
 			}
