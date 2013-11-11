@@ -51,6 +51,9 @@ int async_write_delay(struct epoll_data_client* data)
 {
     int rc;
 
+    if(data->write_count == 0)
+        return 0;
+
     do
     {
         rc = write(data->socketfd, data->write_buffer, data->write_count);
@@ -147,7 +150,6 @@ void init_epoll_data(int socketfd, struct epoll_data_client * data)
 {
     data->socketfd = socketfd;
     data->read_buffer_ptr = data->read_buffer;
-    data->write_buffer_ptr = data->write_buffer;
     data->tipo_mensaje_read = false;
     data->read_count = 1;
     data->write_count = 0;
