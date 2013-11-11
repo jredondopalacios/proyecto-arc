@@ -40,16 +40,22 @@ int aio_socket_escucha(int puerto) {
     return listen_sd;
 }
 
-int async_write(struct epoll_data_client* data, void* buffer, ssize_t length)
+int async_write(struct epoll_data_client* data, void* buffer, int length)
 {
     memcpy(data->write_buffer_ptr, buffer, length);
     data->write_buffer_ptr += length;
+    data->write_count += length;
     return async_write_delay(data);
 }
 
 int async_write_delay(struct epoll_data_client* data)
 {
+    int rc;
 
+    do
+    {
+
+    }
 }
 
 int async_read(struct epoll_data_client *data, void *buffer, int length)
@@ -131,12 +137,3 @@ void init_epoll_data(int socketfd, struct epoll_data_client * data)
     data->write_count = 0;
     data->grupoid = 0;
 }
-
-
-
-
-
-
-
-
-
