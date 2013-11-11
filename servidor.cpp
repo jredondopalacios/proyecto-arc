@@ -43,19 +43,19 @@
 
 using namespace std;
 
-struct GrupoKey {
+struct grupo_key {
 	grupoid_t grupoid;
 };
 
-struct GrupoHash {
-	size_t operator() (const GrupoKey& g) const 
+struct grupo_hash {
+	size_t operator() (const grupo_key& g) const 
 	{
 		return g.grupoid;
 	}
 };
 
-struct GrupoHashEqual {
-	bool operator() (const GrupoKey& lkey, const GrupoKey& rkey) const
+struct grupo_hash_equal {
+	bool operator() (const grupo_key& lkey, const grupo_key& rkey) const
 	{
 		return lkey.grupoid == rkey.grupoid;
 	}
@@ -363,7 +363,7 @@ de ahora, también escuche los mensajes de este nuevo cliente. Si no existe el g
 entonces se creará un nuevo hilo */
 int main (int argc, char *argv[])
 {
-	unordered_map<GrupoKey, vector_cliente, GrupoHash, GrupoHashEqual> clientes_grupo;
+	unordered_map<grupo_key, vector_cliente, grupo_hash, grupo_hash_equal> clientes_grupo;
 
    int    listen_sd, epoll_fd, clientes_conectados = 0;
    struct epoll_event event;
@@ -421,9 +421,8 @@ int main (int argc, char *argv[])
 			    	epoll_event client_event;
 			    	epoll_data_client *data = malloc(sizeof(struct epoll_data_client)); 
 			    	init_epoll_data(new_client_sd, data);
-			    	client_event.events = EPOLLIN | EPOLLET;
+			    	client_event.events = EPOLLOUT | EPOLLIN | EPOLLET | EPOLLRDHUP;
 			    	client_event.data.ptr = data;
-			    	//client_event.data.fd = new_client_sd;
 #ifdef _DEBUG_
 		    		cout << "Nuevo cliente en socket: " << new_client_sd << endl <<flush;
 #endif
@@ -442,13 +441,12 @@ int main (int argc, char *argv[])
 #ifdef _DEBUG_
 		    	printf("Recibidos datos en Socket %d.\n", ((struct epoll_data_client *) epoll_events[i].data.ptr)->socketfd);
 #endif
-		    	struct mensaje_conexion nueva_conexion;
+		    	
 		    	int rc, socket = epoll_events[i].data.fd;
 		    	mensaje_t tipo_mensaje;
-		    	char buffer_conexion[20];
-		    	//struct epoll_data_client * client_data = (struct epoll_data_client *) epoll_events[i].data.ptr;
+		    	char buffer_mensaje[40];
 
-		    	rc = async_read((struct epoll_data_client *) epoll_events[i].data.ptr, buffer_conexion);
+		    	rc = async_read((struct epoll_data_client *) epoll_events[i].data.ptr, buffer_mensaje, 40);
 		    	if(rc < 0)
 		    	{
 		    		printf("async_read() error\n");
@@ -462,39 +460,43 @@ int main (int argc, char *argv[])
 		    		continue;
 		    	}
 
-		    	memcpy(&nueva_conexion, &buffer_conexion[1], sizeof(struct mensaje_conexion));
-
-		    	grupoid_t grupo = nueva_conexion.grupo;
-
-	    		epoll_event event;
-	    		event.events = EPOLLIN;
-	    		event.data.fd = socket;
-
-	    		clientes_conectados++;
-#ifdef _DEBUG_
-	    		printf("Recibida petición a GrupoID: %d\n", grupo);
-	    		printf("Clientes conectados: %d\n\n", clientes_conectados);
-#endif
-	    		try 
+		    	switch(buffer_mensaje[0])
 		    	{
-		    		//epoll_ctl(grupos_sets.at(grupo), EPOLL_CTL_ADD, socket, &event);	
-		    	} catch (const std::out_of_range& oor) {
+			    	case MENSAJE_CONEXION:
+		    		{
+		    			struct mensaje_conexion nueva_conexion;
+		    			memcpy(&nueva_conexion, &buffer_mensaje[1], sizeof(struct mensaje_conexion));
+		    			((struct epoll_data_client *) epoll_events[i].data.ptr)->grupoid = nueva_conexion.grupo;
 
-					/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
-					asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
-					cliente. Además añadimos el hilo al vector de hilos de grupos */
-					int new_epoll_fd;
-					new_epoll_fd = epoll_create1(0);
+		    			struct grupo_key key;
+		    			key.grupoid = nueva_conexion.grupo;
+		    			if (clientes_grupo.find(key) == clientes_grupo.end())
+		    			{
+		    				vector_cliente clientes;
+		    				clientes.push_back(socket);
+		    				pair<grupo_key, vector_cliente> grupo_key(key, clientes);
+		    				clientes_grupo.insert(grupo_key);
+		    			} else {
+		    				vector_cliente clientes = clientes_grupo[key];
+		    				clientes.push_back(socket);
+		    			}
 
-					// Asociamos la nueva ID de grupo con su descriptor epoll
-					//grupos_sets.insert(pair<uint8_t,int>(grupo,new_epoll_fd));
+		    			clientes_conectados++;
+#ifdef _DEBUG_
+	    				printf("Recibida petición a GrupoID: %d\n", key.grupoid);
+	    				printf("Clientes conectados: %d\n", clientes_conectados);
+	    				printf("Grupos activos: %d\n\n", clientes_grupo.size());
+#endif
+	    				mensaje_t tipo_mensaje = MENSAJE_CONEXION_SATISFACTORIA;
+						struct mensaje_conexion_satisfactoria conexion_satisfactoria;
+						conexion_satisfactoria.cliente_id = socket;
 
-					// Creamos un nuevo hilo y lo insertamos en el vector de hilos
-					//grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
+						memcpy(buffer_mensaje, &tipo_mensaje, sizeof(mensaje_t));
+						memcpy(buffer_mensaje + sizeof(mensaje_t), &conexion_satisfactoria, sizeof(struct mensaje_conexion_satisfactoria));
 
-					// Con el grupo creado, registramos los eventos del nuevo cliente
-					epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, socket, &event);
-				}
+		    		}
+
+		    	}
 
 				/*mensaje_t tipo_mensaje = MENSAJE_CONEXION_SATISFACTORIA;
 				struct mensaje_conexion_satisfactoria conexion_satisfactoria;

@@ -15,7 +15,7 @@
 #define UNUSED(expr) do { (void)(expr); } while (0)
 
 typedef int 			clienteid_t;
-typedef int    		grupoid_t;
+typedef int    			grupoid_t;
 typedef uint8_t  		mensaje_t;
 
 struct mensaje_desconexion {

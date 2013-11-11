@@ -47,12 +47,19 @@ int aio_socket_escucha(int puerto) {
     return listen_sd;
 }
 
-/*int async_write(struct epoll_data_client* data, void* buffer, ssize_t length)
+int async_write(struct epoll_data_client* data, void* buffer, ssize_t length)
 {
+    memcpy(data->write_buffer_ptr, buffer, length);
+    data->write_buffer_ptr += length;
+    return async_write_delay(data);
+}
 
-}*/
+int async_write_delay(struct epoll_data_client* data)
+{
+    
+}
 
-int async_read(struct epoll_data_client *data, void *buffer)
+int async_read(struct epoll_data_client *data, void *buffer, int length)
 {
     int rc;
 
@@ -107,7 +114,10 @@ int async_read(struct epoll_data_client *data, void *buffer)
 
         if(data->read_count == 0)
         {
-            memcpy(buffer, data->read_buffer, data->read_count_total);
+#ifdef _DEBUG_
+            printf("Recibido mensaje completo. Tamaño: %d\n", data->read_count_total);
+#endif
+            memcpy(buffer, data->read_buffer, length);
             data->read_buffer_ptr = data->read_buffer;
             data->tipo_mensaje_read = false;
             data->read_count = 1;
@@ -128,6 +138,7 @@ void init_epoll_data(int socketfd, struct epoll_data_client * data)
     data->write_count = 0;
     data->grupoid = 0;
 }
+
 /*grupoid_t aio_lectura_grupo(int socket) {
 	int rc, i = 0;
 	char buffer[BUFFER_SIZE], *buffer_ptr;

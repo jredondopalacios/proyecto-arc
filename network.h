@@ -31,14 +31,14 @@ struct epoll_data_client {
 	char 			write_buffer[INITIAL_BUFFER_SIZE];
 	char 			read_buffer[INITIAL_BUFFER_SIZE];
 	char			*read_buffer_ptr, *write_buffer_ptr;
-	ssize_t			read_count, write_count, read_count_total;
+	int 			read_count, write_count, read_count_total;
 	bool			tipo_mensaje_read;
 };
 
 int aio_socket_escucha(int puerto);
 int async_write(struct epoll_data_client* data, void* buffer, ssize_t length);
 int async_write_delay(struct epoll_data_client* data);
-int async_read(struct epoll_data_client * data, void * buffer);
+int async_read(struct epoll_data_client * data, void * buffer, int length);
 void init_epoll_data(int socketfd, struct epoll_data_client * data);
 
 
