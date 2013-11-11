@@ -16,6 +16,7 @@
 
 #include "mensajes.h"
 
+#define READ_CLOSE						-2
 #define READ_ERROR						-1
 #define READ_BLOCK				        0
 #define READ_SUCCESS					1

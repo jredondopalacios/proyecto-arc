@@ -54,7 +54,9 @@ int async_write_delay(struct epoll_data_client* data)
 
     do
     {
+        rc = send(data->socketfd, data->write_buffer, data->write_count);
 
+        if(rc < 0)
     }
 }
 
@@ -68,7 +70,7 @@ int async_read(struct epoll_data_client *data, void *buffer, int length)
 #ifdef _DEBUG_
         printf("Leídos %d bytes en read()\n", rc);
 #endif
-        if(rc <= 0)
+        if(rc < 0)
         {
             if(errno == EAGAIN || errno == EWOULDBLOCK)
             {
@@ -76,6 +78,11 @@ int async_read(struct epoll_data_client *data, void *buffer, int length)
             }
 
             return READ_ERROR;
+        }
+
+        if( rc == 0)
+        {
+            return READ_CLOSE;
         }
 
         data->read_count -= rc;
