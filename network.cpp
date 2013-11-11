@@ -28,13 +28,6 @@ int aio_socket_escucha(int puerto) {
         perror("bind");
         exit(-1);
     }
-    
-    /*if (ioctl(listen_sd, FIONBIO, (char *)&optval) < 0)
-    {
-        perror("ioctl()");
-        close(listen_sd);
-        exit(-1);
-    }*/
 
     int fl = fcntl(listen_sd, F_GETFL);
     fcntl(listen_sd, F_SETFL, fl | O_NONBLOCK);
@@ -56,7 +49,7 @@ int async_write(struct epoll_data_client* data, void* buffer, ssize_t length)
 
 int async_write_delay(struct epoll_data_client* data)
 {
-    
+
 }
 
 int async_read(struct epoll_data_client *data, void *buffer, int length)
@@ -138,64 +131,6 @@ void init_epoll_data(int socketfd, struct epoll_data_client * data)
     data->write_count = 0;
     data->grupoid = 0;
 }
-
-/*grupoid_t aio_lectura_grupo(int socket) {
-	int rc, i = 0;
-	char buffer[BUFFER_SIZE], *buffer_ptr;
-	struct mensaje_conexion nueva_conexion;
-    size_t len = sizeof(struct mensaje_conexion) + sizeof(uint8_t);
-
-	buffer_ptr = buffer;
-
-	while(1)
-	{
-#ifdef _DEBUG_
-        printf("Preparando para recibir mensaje de conexión.\n");
-#endif
-		rc = read(socket, buffer_ptr + i, len - i);
-
-#ifdef _DEBUG_
-        printf("Socket: %d. Bytes recibidos: %d. Esperados: %lu\n", socket, rc, len);
-#endif
-
-		if(rc < 0)
-		{
-			if(errno != EWOULDBLOCK || errno != EAGAIN)
-			{
-				perror("read()");
-                return ERR_SOCKET_READ;
-			}
-
-#ifdef _DEBUG_
-            printf("No se han recibido suficientes bytes. La siguiente llamada a lectura bloquearía\n");
-#endif
-			return ERR_BLOCK_READ;
-		}
-
-        if(rc == 0)
-        {
-#ifdef _DEBUG_
-            printf("Se ha cerrado la conexión con el cliente.\n");
-#endif
-            return ERR_CLOSE;
-        }
-
-        i += rc; 
-
-        if(i == len)
-        {
-#ifdef _DEBUG_
-            printf("Se han leído los bytes esperados.\n");
-#endif
-            if(buffer[0] == MENSAJE_CONEXION)
-            {
-                memcpy(&nueva_conexion, &buffer[1], sizeof(nueva_conexion));
-                return nueva_conexion.grupo;
-            }
-        }		
-	}
-}
-*/
 
 
 
