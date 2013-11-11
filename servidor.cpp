@@ -488,8 +488,8 @@ int main (int argc, char *argv[])
 			    				pair<grupo_key, vector_cliente> grupo_pair(key, clientes);
 			    				clientes_grupo.insert(grupo_pair);
 			    			} else {
-			    				vector_cliente clientes = clientes_grupo[key];
-			    				clientes.push_back(data_client);
+			    				/*vector_cliente clientes = */clientes_grupo[key].push_back(data_client);
+			    				/*clientes.push_back(data_client);*/
 			    			}
 
 			    			clientes_conectados++;
@@ -512,13 +512,25 @@ int main (int argc, char *argv[])
 
 			    		case MENSAJE_SALUDO:
 			    		{
+#ifdef _DEBUG_
+			    			printf("Recibido saludo de ID: %d. GrupoID: %d\n", data_client->socketfd, data_client->grupoid);
+#endif
 			    			struct grupo_key key;
 			    			key.grupoid = data_client->grupoid;
 			    			vector_cliente clientes = clientes_grupo[key];
 
 			    			for(uint i = 0; i < clientes.size(); i++)
 			    			{
-			    				async_write(clientes.[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_saludo));
+#ifdef _DEBUG_
+			    				printf("Mensaje saludo. Iterando sobre índice %u del vector.\n", i);
+#endif
+			    				if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
+			    				{
+#ifdef _DEBUG_
+			    					printf("Mandando mensaje de saludo a miembro con ID %d\n", ((struct epoll_data_client *)clientes[i])->socketfd);
+#endif
+			    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_saludo));
+			    				}
 			    			}
 			    			break;
 			    		}

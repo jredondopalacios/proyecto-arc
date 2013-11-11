@@ -110,7 +110,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 			return 0;
 		}
 
-		
+
 
 		// Cuando hayamos mandado la solicitud de conexión, esperamos un mensaje confirmandola
 		rc = recv(server_socket, buffer, sizeof(uint8_t), 0);
@@ -224,8 +224,8 @@ int cliente_thread(int grupo, string nombre_fichero)
 			// cout << "[ID" << cliente_id << "] Empezando Ciclo N." << secuencia << endl;
 			// report_mutex.unlock();
 
-			if(secuencia+1 == 3000)
-				break;
+			//if(secuencia+1 == 3000)
+			//	break;
 			//fichero << "Enviando posición con número de secuencia: " << secuencia << endl;;
 
 			// Copiamos al primer bit del buffer el número del tipo de mensaje de posición
@@ -512,7 +512,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 						// Insertamos el nuevo cliente en nuestro contenedor
 						int id_aux = nuevo_saludo.cliente_id_origen;
 						clientes_conocidos.insert(pair<int,cliente_info>(id_aux, nuevo_cliente));
-						//fichero << "Se ha conectado un nuevo miembro a GRUPO: " << grupo << " con ID: " << info.id << endl;
+						cout << "Se ha conectado un nuevo miembro a GRUPO" << endl;
 						//fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
 						break;
 						}
