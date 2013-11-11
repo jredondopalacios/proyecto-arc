@@ -126,6 +126,7 @@ void init_epoll_data(int socketfd, struct epoll_data_client * data)
     data->tipo_mensaje_read = false;
     data->read_count = 1;
     data->write_count = 0;
+    data->grupoid = 0;
 }
 /*grupoid_t aio_lectura_grupo(int socket) {
 	int rc, i = 0;

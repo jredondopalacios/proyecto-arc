@@ -54,6 +54,7 @@
 #include <unistd.h>
 #include <mutex>
 #include <iostream>
+#include <unordered_map>
 
 #include "mensajes.h"
 #include "network.h"
@@ -64,6 +65,8 @@
 #define TRUE             1
 #define FALSE            0
 
+#define MAX_GRUPOS 10000
+
 #define _DEBUG_
 
 
@@ -71,16 +74,26 @@
 
 using namespace std;
 
-/* Almacenaremos todos los hilos creados para los grupos en un vector, para, cuando terminemos, esperar a que
-estos hilos terminen antes */
-vector<thread> grupos_hilos;
+struct GrupoKey {
+	grupoid_t grupoid;
+};
 
-/* Los descriptores de fichero de epoll permitirán al hilo principal actualizarlos cuando entre nuevas conexiones que
-se unan a los grupos Este descriptor se le pasará al hilo para que espere sobre él. Se ha optado por un contendor de tipo
-map<key,value> por su coste de búsqueda de log(n). Aún no siendo una operación crítica, sí que va a haber más accesos a
-las estructuras fd_set que inserciones de nuevos grupos, por lo que interesa mantenerlo en un contendeor ordenado y con
-índice binario para búsqueda */
-map<grupoid_t,int> grupos_sets;
+struct GrupoHash {
+	size_t operator() (const GrupoKey& g) const 
+	{
+		return g.grupoid;
+	}
+};
+
+struct GrupoHashEqual {
+	bool operator() (const GrupoKey& lkey, const GrupoKey& rkey) const
+	{
+		return lkey.grupoid == rkey.grupoid;
+	}
+};
+
+typedef vector<clienteid_t> vector_cliente;
+
 
 
 /* grupo_thread es la función que ejecutará cada hilo. Cada hilo se le asgina a un grupo y
@@ -381,6 +394,8 @@ de ahora, también escuche los mensajes de este nuevo cliente. Si no existe el g
 entonces se creará un nuevo hilo */
 int main (int argc, char *argv[])
 {
+	unordered_map<GrupoKey, vector_cliente, GrupoHash, GrupoHashEqual> clientes_grupo;
+
    int    listen_sd, epoll_fd, clientes_conectados = 0;
    struct epoll_event event;
    struct epoll_event epoll_events[MAXEVENTS];
@@ -493,7 +508,7 @@ int main (int argc, char *argv[])
 #endif
 	    		try 
 		    	{
-		    		epoll_ctl(grupos_sets.at(grupo), EPOLL_CTL_ADD, socket, &event);	
+		    		//epoll_ctl(grupos_sets.at(grupo), EPOLL_CTL_ADD, socket, &event);	
 		    	} catch (const std::out_of_range& oor) {
 
 					/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
@@ -503,10 +518,10 @@ int main (int argc, char *argv[])
 					new_epoll_fd = epoll_create1(0);
 
 					// Asociamos la nueva ID de grupo con su descriptor epoll
-					grupos_sets.insert(pair<uint8_t,int>(grupo,new_epoll_fd));
+					//grupos_sets.insert(pair<uint8_t,int>(grupo,new_epoll_fd));
 
 					// Creamos un nuevo hilo y lo insertamos en el vector de hilos
-					grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
+					//grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
 
 					// Con el grupo creado, registramos los eventos del nuevo cliente
 					epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, socket, &event);

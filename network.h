@@ -27,6 +27,7 @@ using namespace std;
 
 struct epoll_data_client {
 	int 			socketfd;
+	grupoid_t		grupoid;
 	char 			write_buffer[INITIAL_BUFFER_SIZE];
 	char 			read_buffer[INITIAL_BUFFER_SIZE];
 	char			*read_buffer_ptr, *write_buffer_ptr;
@@ -35,8 +36,8 @@ struct epoll_data_client {
 };
 
 int aio_socket_escucha(int puerto);
-//int async_write(struct epoll_data_client* data, void* buffer, ssize_t length);
-//int async_write_delay(struct epoll_data_client* data);
+int async_write(struct epoll_data_client* data, void* buffer, ssize_t length);
+int async_write_delay(struct epoll_data_client* data);
 int async_read(struct epoll_data_client * data, void * buffer);
 void init_epoll_data(int socketfd, struct epoll_data_client * data);
 
