@@ -6,37 +6,6 @@
 /*   Licencia: GPL V2                                                                                     */
 /*                                                                                                        */
 /*    ----- Arquitectura del Servidor:                                                                    */
-/*                                                                                                        */
-/*        El servidor desarrollado se trata de un servidor multi-hilo, con sockets bloqueantes con el     */
-/*    objetivo de alcanzar altas prestaciones. Se han hecho varias decisiones de diseño para alcanzar     */
-/*    dicha meta, o al menos conseguir el mayor rendimiento posible.                                      */
-/*                                                                                                        */
-/*        En primer lugar, se ha optado por una arquitectura multi-hilo ya que se ajusta perfectamente    */
-/*    al tipo de sistema a desarrollar. Puesto que los clientes se dividirán en grupos, y nunca inter-    */
-/*    accionarán clientes de distintos grupos, cada hilo puede guardar en local una lista de todos sus    */
-/*    clientes conectados. Aparte de que ningún hilo debería acceder a la lista de miembros de otros      */
-/*    hilos (Es decir, el funcionamiento de un grupo es independiente del de los demás), restringimos     */
-/*    la búsqueda de las IDs, haciendo desaparecer el coste de buscar a qué grupo pertenecia cada pa-     */
-/*    quete entrante (Que tendríamos en una arquitectura de un solo hilo); búsqueda con un coste en ca-   */
-/*    so peor que era lineal con el número total de clientes entre todos los grupos.                      */
-/*                                                                                                        */
-/*        Se ha optado por utilizar sockets bloqueantes, ya que, por la propia naturaleza del sistema,    */
-/*    no se tiene la necesidad de realizar otras tareas mientras esperamos que se envíen o lean datos,    */
-/*    y si se utilizasen sockets no bloqueantes, el SO mantendría constantemente el proceso activo por    */
-/*    culpa del polling producido. En cambio, con los sockets bloqueantes utilizados, el proceso sólo     */
-/*    es despertado cuando termina la operación, permitiendo continuar. Se hubieran podido utilizar       */
-/*    sockets no bloqueantes y paralelizar el reenvío de mensajes a los miembros de un grupo, pero        */
-/*    creemos que con muchos clientes obtendríamos un peor rendimiento por culpa del overhead de lanzar   */
-/*    tantos hilos como clientes de un grupo, y destruirlos a los pocos milisegundos.                     */
-/*                                                                                                        */
-/*	  Además se ha abandonado el uso de la sentencia select() debido a su bajo rendimiento y escala-  */
-/*    bilidad. En su lugar utilizamos epoll, un sistema sólo de Linux presente desde la versión del       */
-/*    kernel 2.6. epoll no sólo elimina el límite que tenía select() en cuanto a total de descriptores,   */
-/*    sino que además el coste de select() era lineal con el número de descriptores a comprobar, mientras */
-/*    que el de epoll es lineal. Esto provoca que la aplicación sea mucho más escalable, más eficiente,   */
-/*    y soporte más clientes.                                                                             */
-/*                                                                                                        */
-/**********************************************************************************************************/
 
 
 #include <stdio.h>
