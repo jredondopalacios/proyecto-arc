@@ -74,11 +74,6 @@ using namespace std;
 estos hilos terminen antes */
 vector<thread> grupos_hilos;
 
-
-/* Declaramos un mutex global que usará el hilo de conexión cuando tenga que añadir nuevos miembros a los grupos
-o crear grupos nuevos */
-mutex mutex_conexion;
-
 /* Los descriptores de fichero de epoll permitirán al hilo principal actualizarlos cuando entre nuevas conexiones que
 se unan a los grupos Este descriptor se le pasará al hilo para que espere sobre él. Se ha optado por un contendor de tipo
 map<key,value> por su coste de búsqueda de log(n). Aún no siendo una operación crítica, sí que va a haber más accesos a
@@ -106,6 +101,8 @@ void grupo_thread (int epoll_thread_fd)
 	vector<clienteid_t>					clientes;
 	uint8_t								buffer[200];
 	ssize_t 							mensaje_size;
+
+	UNUSED(mensaje_size);
 
 	// Este puntero se rellenará con eventos en la llamada a epoll_wait. Antes de llamarlo
 	// hay que alojar memoria para almacenar hasta MAXEVENTS eventos.
@@ -393,6 +390,8 @@ int main (int argc, char *argv[])
    event.data.fd = listen_sd;
    event.events = EPOLLIN;
 
+   vector<clienteid_t> clientes_conocidos;
+
    //epoll_events = (epoll_event*) calloc (MAXEVENTS, sizeof(event));
 
    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sd, &event);
@@ -420,42 +419,71 @@ int main (int argc, char *argv[])
 #ifdef _DEBUG_
 		    	printf("Recibida nueva conexión.\n");
 #endif
-		    	struct sockaddr_in new_client_sockaddr;
-    			socklen_t clientsize = sizeof(new_client_sockaddr);
-		    	int new_client_sd = accept4(listen_sd, (struct sockaddr *)&new_client_sockaddr, &clientsize, SOCK_NONBLOCK);
-		    	if(new_client_sd < 0)
-		    	{
-		    		if(errno != EWOULDBLOCK || errno != EAGAIN)
-		    		{
-		    			perror("accept4()");
-		    		}
-		    		break;
-		    	}
+		    	int new_client_sd;
 
-		    	epoll_event client_event;
-		    	client_event.data.fd = new_client_sd;
-		    	client_event.events = EPOLLIN;
+		    	do
+			    {
+			    	struct sockaddr_in new_client_sockaddr;
+	    			socklen_t clientsize = sizeof(new_client_sockaddr);
+			    	new_client_sd = accept4(listen_sd, (struct sockaddr *)&new_client_sockaddr, &clientsize, SOCK_NONBLOCK);
+			    	if(new_client_sd < 0)
+			    	{
+			    		if(errno != EWOULDBLOCK || errno != EAGAIN)
+			    		{
+			    			perror("accept4()");
+			    		}
+			    		break;
+			    	}
 
-		    	if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_client_sd, &client_event) < 0)
-		    	{
-		    		perror("epoll_ctl()");
-		    	}
+			    	epoll_event client_event;
+			    	client_event.data.fd = new_client_sd;
+			    	client_event.events = EPOLLIN;
+#ifdef _DEBUG_
+		    		cout << "Nuevo cliente en socket: " << new_client_sd << endl <<flush;
+#endif
+
+			    	if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_client_sd, &client_event) < 0)
+			    	{
+			    		perror("epoll_ctl()");
+			    	}
+			    } while (new_client_sd >= 0);
+
 		    } else {
 #ifdef _DEBUG_
 		    	printf("Recibidos datos en Socket %d.\n", epoll_events[i].data.fd);
 #endif
-		    	grupoid_t grupo = aio_lectura_grupo(epoll_events[i].data.fd);
+		    	struct mensaje_conexion nueva_conexion;
+		    	int rc, socket = epoll_events[i].data.fd;
+		    	mensaje_t tipo_mensaje;
+
+		    	rc = read(socket, &tipo_mensaje, sizeof(mensaje_t));
+		    	if(rc <= 0)
+		    	{
+		    		perror("Error al leer tipo de mensaje.");
+		    		close(socket);
+		    		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, socket, NULL);
+		    		continue;
+		    	}
+		    	rc = read(socket, &nueva_conexion, sizeof(struct mensaje_conexion));
+		    	grupoid_t grupo = nueva_conexion.grupo;
+
+		    	//grupoid_t grupo = aio_lectura_grupo(epoll_events[i].data.fd);
 		    	if(grupo < 0)
 		    	{
 #ifdef _DEBUG_
-		    		printf("Ha habido un error en la conexión. Cerrando socket.\n");
+		    		perror("Error en recepción de mensaje de conexión.");
 #endif
-		    		close(epoll_events[i].data.fd);
-		    		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, epoll_events[i].data.fd, NULL);
-		    	}
+		    		close(socket);
+		    		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, socket, NULL);
+		    		continue;
+		    	} else {
+		    		clientes_conocidos.push_back(socket);
 #ifdef _DEBUG_
-		    	printf("Recibida petición a GrupoID: %d\n", grupo);
+		    		printf("Recibida petición a GrupoID: %d\n", grupo);
+		    		printf("Conectados: %lu Clientes.\n", clientes_conocidos.size());
 #endif
+		    	}
+
 		    }
 		}
     } while (TRUE);

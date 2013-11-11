@@ -29,12 +29,16 @@ int aio_socket_escucha(int puerto) {
         exit(-1);
     }
     
-    if (ioctl(listen_sd, FIONBIO, (char *)&optval) < 0)
+    /*if (ioctl(listen_sd, FIONBIO, (char *)&optval) < 0)
     {
         perror("ioctl()");
         close(listen_sd);
         exit(-1);
-    }
+    }*/
+
+    int fl = fcntl(listen_sd, F_GETFL);
+    fcntl(listen_sd, F_SETFL, fl | O_NONBLOCK);
+
 
     if (listen(listen_sd, LISTEN_QUEUE) < 0) {
         perror("listen");
@@ -53,10 +57,13 @@ grupoid_t aio_lectura_grupo(int socket) {
 
 	while(1)
 	{
+#ifdef _DEBUG_
+        printf("Preparando para recibir mensaje de conexión.\n");
+#endif
 		rc = read(socket, buffer_ptr + i, len - i);
 
 #ifdef _DEBUG_
-        printf("Socket: %d. Bytes recibidos: %d. Esperados: %d\n", socket, rc, len);
+        printf("Socket: %d. Bytes recibidos: %d. Esperados: %lu\n", socket, rc, len);
 #endif
 
 		if(rc < 0)
