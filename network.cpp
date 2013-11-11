@@ -47,7 +47,87 @@ int aio_socket_escucha(int puerto) {
     return listen_sd;
 }
 
-grupoid_t aio_lectura_grupo(int socket) {
+/*int async_write(struct epoll_data_client* data, void* buffer, ssize_t length)
+{
+
+}*/
+
+int async_read(struct epoll_data_client *data, void *buffer)
+{
+    int rc;
+
+    do
+    {
+        rc = read(data->socketfd, data->read_buffer_ptr, data->read_count);
+#ifdef _DEBUG_
+        printf("Leídos %d bytes en read()\n", rc);
+#endif
+        if(rc <= 0)
+        {
+            if(errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                return READ_BLOCK;
+            }
+
+            return READ_ERROR;
+        }
+
+        data->read_count -= rc;
+        data->read_buffer_ptr += rc;
+        data->read_count_total += rc;
+
+        if(!data->tipo_mensaje_read)
+        {
+            data->tipo_mensaje_read = true;
+            switch (data->read_buffer[0])
+            {
+            case MENSAJE_CONEXION:
+                data->read_count = sizeof(struct mensaje_conexion);
+                break;
+            case MENSAJE_SALUDO:
+                data->read_count = sizeof(struct mensaje_saludo);
+                break;
+            case MENSAJE_POSICION:
+                data->read_count = sizeof(struct mensaje_posicion);
+                break;
+            case MENSAJE_RECONOCIMIENTO:
+                data->read_count = sizeof(struct mensaje_reconocimiento);
+                break;
+            case MENSAJE_NOMBRE_REQUEST:
+                data->read_count = sizeof(struct mensaje_nombre_request);
+                break;
+            case MENSAJE_NOMBRE_REPLY:
+                data->read_count = sizeof(struct mensaje_nombre_reply);
+                break;
+            default:
+                data->read_count = 1;
+                data->tipo_mensaje_read = false;
+            }
+        }
+
+        if(data->read_count == 0)
+        {
+            memcpy(buffer, data->read_buffer, data->read_count_total);
+            data->read_buffer_ptr = data->read_buffer;
+            data->tipo_mensaje_read = false;
+            data->read_count = 1;
+            data->read_count_total = 0;
+            return READ_SUCCESS;
+        }
+    } while(rc > 0);
+}
+
+
+void init_epoll_data(int socketfd, struct epoll_data_client * data)
+{
+    data->socketfd = socketfd;
+    data->read_buffer_ptr = data->read_buffer;
+    data->write_buffer_ptr = data->write_buffer;
+    data->tipo_mensaje_read = false;
+    data->read_count = 1;
+    data->write_count = 0;
+}
+/*grupoid_t aio_lectura_grupo(int socket) {
 	int rc, i = 0;
 	char buffer[BUFFER_SIZE], *buffer_ptr;
 	struct mensaje_conexion nueva_conexion;
@@ -103,7 +183,7 @@ grupoid_t aio_lectura_grupo(int socket) {
         }		
 	}
 }
-
+*/
 
 
 

@@ -16,16 +16,29 @@
 
 #include "mensajes.h"
 
-#define ERR_SOCKET_READ					-1
-#define ERR_CLOSE				        -2
-#define ERR_BLOCK_READ					-3
+#define READ_ERROR						-1
+#define READ_BLOCK				        0
+#define READ_SUCCESS					1
 
-#define LISTEN_QUEUE 				1024
-#define BUFFER_SIZE 				24
+#define LISTEN_QUEUE 					1024
+#define INITIAL_BUFFER_SIZE				2000
 
 using namespace std;
 
+struct epoll_data_client {
+	int 			socketfd;
+	char 			write_buffer[INITIAL_BUFFER_SIZE];
+	char 			read_buffer[INITIAL_BUFFER_SIZE];
+	char			*read_buffer_ptr, *write_buffer_ptr;
+	ssize_t			read_count, write_count, read_count_total;
+	bool			tipo_mensaje_read;
+};
+
 int aio_socket_escucha(int puerto);
-grupoid_t aio_lectura_grupo(int socket);
+//int async_write(struct epoll_data_client* data, void* buffer, ssize_t length);
+//int async_write_delay(struct epoll_data_client* data);
+int async_read(struct epoll_data_client * data, void * buffer);
+void init_epoll_data(int socketfd, struct epoll_data_client * data);
+
 
 #endif

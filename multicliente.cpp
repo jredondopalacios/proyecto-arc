@@ -110,6 +110,8 @@ int cliente_thread(int grupo, string nombre_fichero)
 			return 0;
 		}
 
+		
+
 		// Cuando hayamos mandado la solicitud de conexión, esperamos un mensaje confirmandola
 		rc = recv(server_socket, buffer, sizeof(uint8_t), 0);
 

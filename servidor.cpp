@@ -435,8 +435,11 @@ int main (int argc, char *argv[])
 			    	}
 
 			    	epoll_event client_event;
-			    	client_event.data.fd = new_client_sd;
-			    	client_event.events = EPOLLIN;
+			    	epoll_data_client *data = malloc(sizeof(struct epoll_data_client)); 
+			    	init_epoll_data(new_client_sd, data);
+			    	client_event.events = EPOLLIN | EPOLLET;
+			    	client_event.data.ptr = data;
+			    	//client_event.data.fd = new_client_sd;
 #ifdef _DEBUG_
 		    		cout << "Nuevo cliente en socket: " << new_client_sd << endl <<flush;
 #endif
@@ -453,19 +456,25 @@ int main (int argc, char *argv[])
 
 		    } else {
 #ifdef _DEBUG_
-		    	printf("Recibidos datos en Socket %d.\n", epoll_events[i].data.fd);
+		    	printf("Recibidos datos en Socket %d.\n", ((struct epoll_data_client *) epoll_events[i].data.ptr)->socketfd);
 #endif
 		    	struct mensaje_conexion nueva_conexion;
 		    	int rc, socket = epoll_events[i].data.fd;
 		    	mensaje_t tipo_mensaje;
 		    	char buffer_conexion[20];
+		    	//struct epoll_data_client * client_data = (struct epoll_data_client *) epoll_events[i].data.ptr;
 
-		    	rc = read(socket, &buffer_conexion, sizeof(mensaje_t) + sizeof(mensaje_conexion));
-		    	if(rc <= 0)
+		    	rc = async_read((struct epoll_data_client *) epoll_events[i].data.ptr, buffer_conexion);
+		    	if(rc < 0)
 		    	{
-		    		perror("read() error.");
+		    		printf("async_read() error\n");
 		    		close(socket);
 		    		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, socket, NULL);
+		    		continue;
+		    	}
+
+		    	if(rc == 0)
+		    	{
 		    		continue;
 		    	}
 
@@ -473,36 +482,59 @@ int main (int argc, char *argv[])
 
 		    	grupoid_t grupo = nueva_conexion.grupo;
 
-		    		epoll_event event;
-		    		event.events = EPOLLIN;
-		    		event.data.fd = socket;
+	    		epoll_event event;
+	    		event.events = EPOLLIN;
+	    		event.data.fd = socket;
 
-		    		clientes_conectados++;
+	    		clientes_conectados++;
 #ifdef _DEBUG_
-		    		printf("Recibida petición a GrupoID: %d\n", grupo);
-		    		printf("Clientes conectados: %d\n\n", clientes_conectados);
+	    		printf("Recibida petición a GrupoID: %d\n", grupo);
+	    		printf("Clientes conectados: %d\n\n", clientes_conectados);
 #endif
-		    		try 
-			    	{
-			    		epoll_ctl(grupos_sets.at(grupo), EPOLL_CTL_ADD, socket, &event);	
-			    	} catch (const std::out_of_range& oor) {
+	    		try 
+		    	{
+		    		epoll_ctl(grupos_sets.at(grupo), EPOLL_CTL_ADD, socket, &event);	
+		    	} catch (const std::out_of_range& oor) {
 
-						/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
-						asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
-						cliente. Además añadimos el hilo al vector de hilos de grupos */
-						int new_epoll_fd;
-						new_epoll_fd = epoll_create1(0);
+					/* En caso de que el grupo al que se desea unir el cliente no exista, debemos crear un nuevo set, que 
+					asociaremos al id de grupo nuevo mediante el map. Inicializaremos el set y añadiremos este primer
+					cliente. Además añadimos el hilo al vector de hilos de grupos */
+					int new_epoll_fd;
+					new_epoll_fd = epoll_create1(0);
 
-						// Asociamos la nueva ID de grupo con su descriptor epoll
-						grupos_sets.insert(pair<uint8_t,int>(grupo,new_epoll_fd));
+					// Asociamos la nueva ID de grupo con su descriptor epoll
+					grupos_sets.insert(pair<uint8_t,int>(grupo,new_epoll_fd));
 
-						// Creamos un nuevo hilo y lo insertamos en el vector de hilos
-						grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
+					// Creamos un nuevo hilo y lo insertamos en el vector de hilos
+					grupos_hilos.push_back(thread(grupo_thread, new_epoll_fd));
 
-						// Con el grupo creado, registramos los eventos del nuevo cliente
-						epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, socket, &event);
+					// Con el grupo creado, registramos los eventos del nuevo cliente
+					epoll_ctl(new_epoll_fd, EPOLL_CTL_ADD, socket, &event);
+				}
+
+				/*mensaje_t tipo_mensaje = MENSAJE_CONEXION_SATISFACTORIA;
+				struct mensaje_conexion_satisfactoria conexion_satisfactoria;
+				conexion_satisfactoria.cliente_id = socket;
+
+				memcpy(buffer, &tipo_mensaje, sizeof(mensaje_t));
+				memcpy(buffer + sizeof(mensaje_t), &conexion_satisfactoria, sizeof(struct mensaje_conexion_satisfactoria));
+
+				ssize_t bytes_send = 0;
+
+				do
+				{
+					rc = send(socket, buffer, sizeof(mensaje_t) + sizeof(struct mensaje_conexion_satisfactoria));
+
+					if(rc < 0)
+					{
+						if(errno != EWOULDBLOCK || errno != EAGAIN)
+						{
+							perror("send()");
+							close(socket);
+							break;
+						}
 					}
-		    	
+				}*/
 
 		    }
 		}
