@@ -245,6 +245,8 @@ int cliente_thread(int grupo, string nombre_fichero)
 				return 0;
 			}
 
+			//cout << "rc: " << rc << endl;
+
 			// Reiniciamos el contador de tiempo para saber cuanto tiempo durará el siguiente ciclo
 			ticker = time_ms();
 
@@ -512,7 +514,7 @@ int cliente_thread(int grupo, string nombre_fichero)
 						// Insertamos el nuevo cliente en nuestro contenedor
 						int id_aux = nuevo_saludo.cliente_id_origen;
 						clientes_conocidos.insert(pair<int,cliente_info>(id_aux, nuevo_cliente));
-						cout << "Se ha conectado un nuevo miembro a GRUPO" << endl;
+						//fichero << "Se ha conectado un nuevo miembro a GRUPO" << endl;
 						//fichero << ">>> Conozco " << clientes_conocidos.size() << " clientes <<<" << endl;
 						break;
 						}

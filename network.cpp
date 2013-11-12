@@ -79,9 +79,7 @@ int async_read(struct epoll_data_client *data, void *buffer, int length)
     do
     {
         rc = read(data->socketfd, data->read_buffer_ptr, data->read_count);
-#ifdef _DEBUG_
-        printf("Leídos %d bytes en read()\n", rc);
-#endif
+
         if(rc < 0)
         {
             if(errno == EAGAIN || errno == EWOULDBLOCK)
