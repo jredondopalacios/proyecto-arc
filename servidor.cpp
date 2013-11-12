@@ -459,17 +459,17 @@ int main (int argc, char *argv[])
 
 
 				    	rc = async_read(data_client, buffer_mensaje, 40);
-				    	if(rc < 0)
+				    	if(rc == READ_ERROR || rc == READ_CLOSE)
 				    	{
 				    		printf("async_read() error\n");
 				    		close(data_client->socketfd);
 				    		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, data_client->socketfd, NULL);
-				    		continue;
+				    		break;
 				    	}
 
-				    	if(rc == 0)
+				    	if(rc == READ_BLOCK)
 				    	{
-				    		continue;
+				    		break;
 				    	}
 
 				    	switch(buffer_mensaje[0])
