@@ -1,7 +1,7 @@
 TODO: servidor cliente multicliente network 
 
 servidor: servidor.cpp network mensajes.h
-	g++ --std=c++11 -g -Wall -Ofast -fpermissive servidor.cpp -o servidor -lpthread ./network.o
+	g++ --std=c++11 -g -Wall -O0 -fpermissive servidor.cpp -o servidor -lpthread ./network.o
 cliente: cliente.cpp mensajes.h
 	g++ --std=c++11 -Wall -Ofast -fpermissive -march=native cliente.cpp -o cliente
 

@@ -1,6 +1,5 @@
 #include "network.h"
 
-#define _DEBUG_
 
 using namespace std;
 
@@ -64,17 +63,21 @@ int async_write_delay(struct epoll_data_client* data)
             {
                 return 0;
             }
+            //perror("async_write_delay->send()");
             return -1;
         }
 
         if(rc == 0)
         {
-            return -2;
+            return 0;
         }
 
         data->write_count = data->write_count - rc;
+        //cout << data->write_count << endl << flush;
         memcpy(data->write_buffer, data->write_buffer + rc, data->write_count);
     } while(rc > 0);
+
+    return rc;
 }
 
 int async_read(struct epoll_data_client *data, void *buffer, int length)
@@ -91,6 +94,8 @@ int async_read(struct epoll_data_client *data, void *buffer, int length)
             {
                 return READ_BLOCK;
             }
+
+            perror("async_read->read()");
 
             return READ_ERROR;
         }
@@ -136,7 +141,7 @@ int async_read(struct epoll_data_client *data, void *buffer, int length)
         if(data->read_count == 0)
         {
 #ifdef _DEBUG_
-            printf("Recibido mensaje completo. Tamaño: %d\n", data->read_count_total);
+            //printf("Recibido mensaje completo. Tamaño: %d\n", data->read_count_total);
 #endif
             memcpy(buffer, data->read_buffer, length);
             data->read_buffer_ptr = data->read_buffer;
@@ -146,6 +151,8 @@ int async_read(struct epoll_data_client *data, void *buffer, int length)
             return READ_SUCCESS;
         }
     } while(rc > 0);
+
+    return READ_ERROR;
 }
 
 
