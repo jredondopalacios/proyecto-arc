@@ -22,7 +22,7 @@
 #define READ_SUCCESS					1
 
 #define LISTEN_QUEUE 					1024
-#define INITIAL_BUFFER_SIZE				2000
+#define INITIAL_BUFFER_SIZE				20000
 
 using namespace std;
 

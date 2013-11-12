@@ -363,6 +363,7 @@ de ahora, también escuche los mensajes de este nuevo cliente. Si no existe el g
 entonces se creará un nuevo hilo */
 int main (int argc, char *argv[])
 {
+
 	unordered_map<grupo_key, vector_cliente, grupo_hash, grupo_hash_equal> clientes_grupo;
 
    int    listen_sd, epoll_fd, clientes_conectados = 0;
@@ -464,7 +465,31 @@ int main (int argc, char *argv[])
 				    		printf("async_read() error\n");
 				    		close(data_client->socketfd);
 				    		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, data_client->socketfd, NULL);
+
+				    		struct grupo_key key;
+				    		struct mensaje_desconexion desconexion;
+				    		mensaje_t tipo_mensaje = MENSAJE_DESCONEXION;
+
+				    		key.grupoid = data_client->grupoid;
+				    		vector_cliente clientes = clientes_grupo[key];
+
+				    		int erase_index;
+
+				    		desconexion.cliente_id_origen = data_client->socketfd;
+				    		memcpy(buffer_mensaje, &tipo_mensaje, sizeof(mensaje_t));
+				    		memcpy(&buffer_mensaje[1], &desconexion, sizeof(struct mensaje_desconexion));
+
+				    		for(uint i = 0; i < clientes.size(); i++)
+				    		{
+				    			if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
+				    				async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_desconexion));
+				    			else
+				    				erase_index = i;
+				    		}
+
+				    		clientes.erase(i + clientes.begin());
 				    		break;
+
 				    	}
 
 				    	if(rc == READ_BLOCK)
@@ -482,6 +507,7 @@ int main (int argc, char *argv[])
 
 				    			struct grupo_key key;
 				    			key.grupoid = nueva_conexion.grupo;
+
 				    			if (clientes_grupo.find(key) == clientes_grupo.end())
 				    			{
 				    				printf("No existía el Grupo %d. Creando uno nuevo.\n", key.grupoid);

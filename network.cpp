@@ -56,7 +56,7 @@ int async_write_delay(struct epoll_data_client* data)
 
     do
     {
-        rc = write(data->socketfd, data->write_buffer, data->write_count);
+        rc = send(data->socketfd, data->write_buffer, data->write_count, MSG_NOSIGNAL);
 
         if(rc < 0)
         {
@@ -65,6 +65,11 @@ int async_write_delay(struct epoll_data_client* data)
                 return 0;
             }
             return -1;
+        }
+
+        if(rc == 0)
+        {
+            return -2;
         }
 
         data->write_count = data->write_count - rc;
