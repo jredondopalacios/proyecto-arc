@@ -431,9 +431,9 @@ int cliente_thread(int grupo, string nombre_fichero)
 							{
 								// Elimiamos el cliente de la lista de reconocimientos esperados
 								clientes_copia.erase(reconocimiento.cliente_id_origen);
-								// report_mutex.lock();
-								// cout << "[ID" << cliente_id << "] ACK ESPERADO. QUEDAN " << clientes_copia.size() << endl;
-								// report_mutex.unlock();
+								report_mutex.lock();
+								cout << "[ID" << cliente_id << "] ACK ESPERADO. QUEDAN " << clientes_copia.size() << endl;
+								report_mutex.unlock();
 							}
 							/*for(uint j=0; j < clientes_copia.size(); j++)
 							{

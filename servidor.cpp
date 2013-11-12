@@ -449,161 +449,163 @@ int main (int argc, char *argv[])
 #ifdef _DEBUG_
 			    	printf("Recibidos datos en Socket %d.\n", ((struct epoll_data_client *) epoll_events[i].data.ptr)->socketfd);
 #endif
-			    	
 			    	int rc;
-			    	mensaje_t tipo_mensaje;
-			    	char buffer_mensaje[40];
-			    	struct epoll_data_client * data_client = (struct epoll_data_client *) epoll_events[i].data.ptr;
 
-
-			    	rc = async_read(data_client, buffer_mensaje, 40);
-			    	if(rc < 0)
+			    	do
 			    	{
-			    		printf("async_read() error\n");
-			    		close(data_client->socketfd);
-			    		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, data_client->socketfd, NULL);
-			    		continue;
-			    	}
+				    	mensaje_t tipo_mensaje;
+				    	char buffer_mensaje[40];
+				    	struct epoll_data_client * data_client = (struct epoll_data_client *) epoll_events[i].data.ptr;
 
-			    	if(rc == 0)
-			    	{
-			    		continue;
-			    	}
 
-			    	switch(buffer_mensaje[0])
-			    	{
-				    	case MENSAJE_CONEXION:
-			    		{
-			    			struct mensaje_conexion nueva_conexion;
-			    			memcpy(&nueva_conexion, &buffer_mensaje[1], sizeof(struct mensaje_conexion));
-			    			data_client->grupoid = nueva_conexion.grupo;
+				    	rc = async_read(data_client, buffer_mensaje, 40);
+				    	if(rc < 0)
+				    	{
+				    		printf("async_read() error\n");
+				    		close(data_client->socketfd);
+				    		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, data_client->socketfd, NULL);
+				    		continue;
+				    	}
 
-			    			struct grupo_key key;
-			    			key.grupoid = nueva_conexion.grupo;
-			    			if (clientes_grupo.find(key) == clientes_grupo.end())
-			    			{
-			    				printf("No existía el Grupo %d. Creando uno nuevo.\n", key.grupoid);
-			    				vector<struct epoll_data_client *> clientes;
-			    				clientes.push_back(data_client);
-			    				pair<grupo_key, vector_cliente> grupo_pair(key, clientes);
-			    				clientes_grupo.insert(grupo_pair);
-			    			} else {
-			    				/*vector_cliente clientes = */clientes_grupo[key].push_back(data_client);
-			    				/*clientes.push_back(data_client);*/
-			    			}
+				    	if(rc == 0)
+				    	{
+				    		continue;
+				    	}
 
-			    			clientes_conectados++;
+				    	switch(buffer_mensaje[0])
+				    	{
+					    	case MENSAJE_CONEXION:
+				    		{
+				    			struct mensaje_conexion nueva_conexion;
+				    			memcpy(&nueva_conexion, &buffer_mensaje[1], sizeof(struct mensaje_conexion));
+				    			data_client->grupoid = nueva_conexion.grupo;
+
+				    			struct grupo_key key;
+				    			key.grupoid = nueva_conexion.grupo;
+				    			if (clientes_grupo.find(key) == clientes_grupo.end())
+				    			{
+				    				printf("No existía el Grupo %d. Creando uno nuevo.\n", key.grupoid);
+				    				vector<struct epoll_data_client *> clientes;
+				    				clientes.push_back(data_client);
+				    				pair<grupo_key, vector_cliente> grupo_pair(key, clientes);
+				    				clientes_grupo.insert(grupo_pair);
+				    			} else {
+				    				/*vector_cliente clientes = */clientes_grupo[key].push_back(data_client);
+				    				/*clientes.push_back(data_client);*/
+				    			}
+
+			    				clientes_conectados++;
 #ifdef _DEBUG_
-		    				printf("Recibida petición a GrupoID: %d. Socket: %d\n", key.grupoid, data_client->socketfd);
-		    				printf("Clientes conectados: %d\n", clientes_conectados);
-		    				printf("Grupos activos: %d\n\n", clientes_grupo.size());
+		    					printf("Recibida petición a GrupoID: %d. Socket: %d\n", key.grupoid, data_client->socketfd);
+		    					printf("Clientes conectados: %d\n", clientes_conectados);
+		    					printf("Grupos activos: %d\n\n", clientes_grupo.size());
 #endif
-		    				mensaje_t tipo_mensaje = MENSAJE_CONEXION_SATISFACTORIA;
-							struct mensaje_conexion_satisfactoria conexion_satisfactoria;
-							conexion_satisfactoria.cliente_id = data_client->socketfd;
+		    					mensaje_t tipo_mensaje = MENSAJE_CONEXION_SATISFACTORIA;
+								struct mensaje_conexion_satisfactoria conexion_satisfactoria;
+								conexion_satisfactoria.cliente_id = data_client->socketfd;
 
-							memcpy(buffer_mensaje, &tipo_mensaje, sizeof(mensaje_t));
-							memcpy(buffer_mensaje + sizeof(mensaje_t), &conexion_satisfactoria, sizeof(struct mensaje_conexion_satisfactoria));
+								memcpy(buffer_mensaje, &tipo_mensaje, sizeof(mensaje_t));
+								memcpy(buffer_mensaje + sizeof(mensaje_t), &conexion_satisfactoria, sizeof(struct mensaje_conexion_satisfactoria));
 
-							async_write(data_client, buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_conexion_satisfactoria));
+								async_write(data_client, buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_conexion_satisfactoria));
 
-							break;
-			    		}
-
-			    		case MENSAJE_SALUDO:
-			    		{
-#ifdef _DEBUG_
-			    			printf("Recibido saludo de ID: %d. GrupoID: %d\n", data_client->socketfd, data_client->grupoid);
-#endif
-			    			struct grupo_key key;
-			    			key.grupoid = data_client->grupoid;
-			    			vector_cliente clientes = clientes_grupo[key];
-
-			    			for(uint i = 0; i < clientes.size(); i++)
-			    			{
-			    				if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
-			    				{
-			    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_saludo));
-			    				}
+								break;
 			    			}
-			    			break;
-			    		}
-			    		case MENSAJE_POSICION:
-			    		{
-#ifdef _DEBUG_
-			    			printf("Recibida posicion de ID: %d. GrupoID: %d\n", data_client->socketfd, data_client->grupoid);
-#endif
-			    			struct grupo_key key;
-			    			key.grupoid = data_client->grupoid;
-			    			vector_cliente clientes = clientes_grupo[key];
 
-			    			for(uint i = 0; i < clientes.size(); i++)
-			    			{
-			    				if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
-			    				{
-			    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion));
-			    				}
+				    		case MENSAJE_SALUDO:
+				    		{
+	#ifdef _DEBUG_
+				    			printf("Recibido saludo de ID: %d. GrupoID: %d\n", data_client->socketfd, data_client->grupoid);
+	#endif
+				    			struct grupo_key key;
+				    			key.grupoid = data_client->grupoid;
+				    			vector_cliente clientes = clientes_grupo[key];
+
+				    			for(uint i = 0; i < clientes.size(); i++)
+				    			{
+				    				if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
+				    				{
+				    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_saludo));
+				    				}
+				    			}
+				    			break;
+				    		}
+				    		case MENSAJE_POSICION:
+				    		{
+	#ifdef _DEBUG_
+				    			printf("Recibida posicion de ID: %d. GrupoID: %d\n", data_client->socketfd, data_client->grupoid);
+	#endif
+				    			struct grupo_key key;
+				    			key.grupoid = data_client->grupoid;
+				    			vector_cliente clientes = clientes_grupo[key];
+
+				    			for(uint i = 0; i < clientes.size(); i++)
+				    			{
+				    				if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
+				    				{
+				    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion));
+				    				}
+				    			}
+				    			break;
+				    		}
+				    		case MENSAJE_RECONOCIMIENTO:
+				    		{
+				    			struct mensaje_reconocimiento reconocimiento;
+				    			memcpy(&reconocimiento, &buffer_mensaje[1], sizeof(struct mensaje_reconocimiento));
+
+				    			struct grupo_key key;
+				    			key.grupoid = data_client->grupoid;
+				    			vector_cliente clientes = clientes_grupo[key];
+
+				    			for(uint i = 0; i < clientes.size(); i++)
+				    			{
+				    				if(((struct epoll_data_client *) clientes[i])->socketfd == reconocimiento.cliente_id_destino)
+				    				{
+				    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_reconocimiento));
+				    				}
+				    			}
+				    			break;
+				    		}
+				    		case MENSAJE_NOMBRE_REPLY:
+				    		{
+				    			struct mensaje_nombre_reply nombre_reply;
+				    			memcpy(&nombre_reply, &buffer_mensaje[1], sizeof(struct mensaje_nombre_reply));
+
+				    			struct grupo_key key;
+				    			key.grupoid = data_client->grupoid;
+				    			vector_cliente clientes = clientes_grupo[key];
+
+				    			for(uint i = 0; i < clientes.size(); i++)
+				    			{
+				    				if(((struct epoll_data_client *) clientes[i])->socketfd == nombre_reply.cliente_id_destino)
+				    				{
+				    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_nombre_reply));
+				    				}
+				    			}
+				    			break;
+				    		}
+				    		case MENSAJE_NOMBRE_REQUEST:
+				    		{
+				    			struct mensaje_nombre_request nombre_request;
+				    			memcpy(&nombre_request, &buffer_mensaje[1], sizeof(struct mensaje_nombre_request));
+
+				    			struct grupo_key key;
+				    			key.grupoid = data_client->grupoid;
+				    			vector_cliente clientes = clientes_grupo[key];
+
+				    			for(uint i = 0; i < clientes.size(); i++)
+				    			{
+				    				if(((struct epoll_data_client *) clientes[i])->socketfd == nombre_request.cliente_id_destino)
+				    				{
+				    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_nombre_request));
+				    				}
+				    			}
+				    			break;
 			    			}
-			    			break;
-			    		}
-			    		case MENSAJE_RECONOCIMIENTO:
-			    		{
-			    			struct mensaje_reconocimiento reconocimiento;
-			    			memcpy(&reconocimiento, &buffer_mensaje[1], sizeof(struct mensaje_reconocimiento));
 
-			    			struct grupo_key key;
-			    			key.grupoid = data_client->grupoid;
-			    			vector_cliente clientes = clientes_grupo[key];
-
-			    			for(uint i = 0; i < clientes.size(); i++)
-			    			{
-			    				if(((struct epoll_data_client *) clientes[i])->socketfd == reconocimiento.cliente_id_destino)
-			    				{
-			    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_reconocimiento));
-			    				}
-			    			}
-			    			break;
-			    		}
-			    		case MENSAJE_NOMBRE_REPLY:
-			    		{
-			    			struct mensaje_nombre_reply nombre_reply;
-			    			memcpy(&nombre_reply, &buffer_mensaje[1], sizeof(struct mensaje_nombre_reply));
-
-			    			struct grupo_key key;
-			    			key.grupoid = data_client->grupoid;
-			    			vector_cliente clientes = clientes_grupo[key];
-
-			    			for(uint i = 0; i < clientes.size(); i++)
-			    			{
-			    				if(((struct epoll_data_client *) clientes[i])->socketfd == nombre_reply.cliente_id_destino)
-			    				{
-			    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_nombre_reply));
-			    				}
-			    			}
-			    			break;
-			    		}
-			    		case MENSAJE_NOMBRE_REQUEST:
-			    		{
-			    			struct mensaje_nombre_request nombre_request;
-			    			memcpy(&nombre_request, &buffer_mensaje[1], sizeof(struct mensaje_nombre_request));
-
-			    			struct grupo_key key;
-			    			key.grupoid = data_client->grupoid;
-			    			vector_cliente clientes = clientes_grupo[key];
-
-			    			for(uint i = 0; i < clientes.size(); i++)
-			    			{
-			    				if(((struct epoll_data_client *) clientes[i])->socketfd == nombre_request.cliente_id_destino)
-			    				{
-			    					async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_nombre_request));
-			    				}
-			    			}
-			    			break;
 			    		}
 
-
-
-			    	}
+			    	} while(rc > 0);
 
 				}
 
