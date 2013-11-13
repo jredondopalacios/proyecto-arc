@@ -96,6 +96,7 @@ int async_read(struct epoll_data_client *data, void *buffer, int length)
             }
 
             perror("async_read->read()");
+            cout << "async_read() error: " << data->socketfd << endl;
 
             return READ_ERROR;
         }

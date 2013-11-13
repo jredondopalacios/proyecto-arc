@@ -97,12 +97,12 @@ int main (int argc, char *argv[])
 		    }*/
 
 
-		    cout << "-----------------------------" << endl;
-		    if ((epoll_events[i].events & EPOLLRDHUP))
+		    cout << "---------------------------------" << endl;
+		    if ((epoll_events[i].events & EPOLLRDHUP) || (epoll_events[i].events & EPOLLHUP) || (epoll_events[i].events & EPOLLERR))
 		    {
 		    	struct epoll_data_client * data_client = (struct epoll_data_client *) epoll_events[i].data.ptr;
 		    	close(data_client->socketfd);
-		    	cout << "Desconectado ClienteID: " << data_client->socketfd << endl << flush;
+		    	cout << "Desconectado ClienteID: " << data_client->socketfd << " del GrupoID: " << data_client->grupoid << endl << flush;
 
 		    	struct grupo_key key;
 	    		struct mensaje_desconexion desconexion;
@@ -131,7 +131,7 @@ int main (int argc, char *argv[])
 	    			else
 	    			{
 	    				cout << "Se ha encontrado ID " << ((struct epoll_data_client *) clientes[i])->socketfd << " en el vector";
-	    				cout << " en el índice " << i << "/" << clientes.size() << endl;
+	    				cout << " en el índice " << i + 1 << "/" << clientes.size() << endl;
 	    				erase_index = i;
 	    				erase_find = true;
 	    			}
@@ -143,7 +143,11 @@ int main (int argc, char *argv[])
 	    			clientes_grupo[key].erase(erase_index + clientes_grupo[key].begin());
 	    		}
 
-	    		cout << "El grupo tiene ahora " << clientes_grupo[key].size() << endl;
+	    		cout << "El GrupoID " << key.grupoid << " tiene ahora " << clientes_grupo[key].size() << endl;
+
+	    		clientes_conectados--;
+
+	    		cout << "Hay en total " << clientes_conectados << " clientes conectados en el sistema." << endl;
 
 	 			//assert(erase_find);
 
@@ -182,7 +186,7 @@ int main (int argc, char *argv[])
 				    	epoll_event client_event;
 				    	epoll_data_client *data = (epoll_data_client * ) malloc(sizeof(struct epoll_data_client));
 				    	init_epoll_data(new_client_sd, data);
-				    	client_event.events = EPOLLOUT | EPOLLIN | EPOLLET| EPOLLRDHUP;
+				    	client_event.events = EPOLLOUT | EPOLLIN | EPOLLET| EPOLLRDHUP | EPOLLHUP | EPOLLERR;
 				    	client_event.data.ptr = data;
 #ifdef _DEBUG_
 			    		cout << "Nuevo cliente en socket: " << new_client_sd << endl <<flush;
@@ -217,7 +221,107 @@ int main (int argc, char *argv[])
 				    		printf("async_read() error\n");
 				    		//close(data_client->socketfd);
 				    		//epoll_ctl(epoll_fd, EPOLL_CTL_DEL, data_client->socketfd, NULL);
-				    		break;
+
+				    		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct epoll_data_client * data_client = (struct epoll_data_client *) epoll_events[i].data.ptr;
+		    	close(data_client->socketfd);
+		    	cout << "Desconectado ClienteID: " << data_client->socketfd << " del GrupoID: " << data_client->grupoid << endl << flush;
+
+		    	struct grupo_key key;
+	    		struct mensaje_desconexion desconexion;
+	    		char buffer_mensaje[40];
+	    		mensaje_t tipo_mensaje = MENSAJE_DESCONEXION;
+
+	    		key.grupoid = data_client->grupoid;
+	    		vector_cliente clientes = clientes_grupo[key];
+
+	    		int erase_index;
+	    		bool erase_find = false;
+
+	    		desconexion.cliente_id_origen = data_client->socketfd;
+	    		memcpy(buffer_mensaje, &tipo_mensaje, sizeof(mensaje_t));
+	    		memcpy(&buffer_mensaje[1], &desconexion, sizeof(struct mensaje_desconexion));
+
+	    		cout << "En el grupo había " << clientes_grupo[key].size() << " clientes." << endl;
+
+	    		for(uint i = 0; i < clientes.size(); i++)
+	    		{
+	    			if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
+	    			{
+	    				cout << "Enviando información de desconexión sobre " << data_client->socketfd << " a " << clientes[i] << endl;
+	    				async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_desconexion));
+	    			}
+	    			else
+	    			{
+	    				cout << "Se ha encontrado ID " << ((struct epoll_data_client *) clientes[i])->socketfd << " en el vector";
+	    				cout << " en el índice " << i + 1 << "/" << clientes.size() << endl;
+	    				erase_index = i;
+	    				erase_find = true;
+	    			}
+	    		}
+
+	    		if (erase_find)
+	    		{
+	    			cout << "Borrada ID " << data_client->socketfd << " del vector de clientes de grupo." << endl;
+	    			clientes_grupo[key].erase(erase_index + clientes_grupo[key].begin());
+	    		}
+
+	    		cout << "El GrupoID " << key.grupoid << " tiene ahora " << clientes_grupo[key].size() << endl;
+
+	    		clientes_conectados--;
+
+	    		cout << "Hay en total " << clientes_conectados << " clientes conectados en el sistema." << endl;
+
+	 			//assert(erase_find);
+
+	    		break;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+				    		
 				    	}
 
 				    	if(rc == READ_BLOCK)
@@ -303,7 +407,86 @@ int main (int argc, char *argv[])
 				    				{
 				    					if (async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion)) < 0)
 				    					{
+
 				    						cout << "Error enviando a ID " << ((struct epoll_data_client *) clientes[i])->socketfd << endl;
+
+
+
+
+
+
+
+struct epoll_data_client * data_client = (struct epoll_data_client *) clientes[i];
+		    	close(data_client->socketfd);
+		    	cout << "Desconectado ClienteID: " << data_client->socketfd << " del GrupoID: " << data_client->grupoid << endl << flush;
+
+		    	struct grupo_key key;
+	    		struct mensaje_desconexion desconexion;
+	    		char buffer_mensaje[40];
+	    		mensaje_t tipo_mensaje = MENSAJE_DESCONEXION;
+
+	    		key.grupoid = data_client->grupoid;
+	    		vector_cliente clientes = clientes_grupo[key];
+
+	    		int erase_index;
+	    		bool erase_find = false;
+
+	    		desconexion.cliente_id_origen = data_client->socketfd;
+	    		memcpy(buffer_mensaje, &tipo_mensaje, sizeof(mensaje_t));
+	    		memcpy(&buffer_mensaje[1], &desconexion, sizeof(struct mensaje_desconexion));
+
+	    		cout << "En el grupo había " << clientes_grupo[key].size() << " clientes." << endl;
+
+	    		for(uint i = 0; i < clientes.size(); i++)
+	    		{
+	    			if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
+	    			{
+	    				cout << "Enviando información de desconexión sobre " << data_client->socketfd << " a " << clientes[i] << endl;
+	    				async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_desconexion));
+	    			}
+	    			else
+	    			{
+	    				cout << "Se ha encontrado ID " << ((struct epoll_data_client *) clientes[i])->socketfd << " en el vector";
+	    				cout << " en el índice " << i + 1 << "/" << clientes.size() << endl;
+	    				erase_index = i;
+	    				erase_find = true;
+	    			}
+	    		}
+
+	    		if (erase_find)
+	    		{
+	    			cout << "Borrada ID " << data_client->socketfd << " del vector de clientes de grupo." << endl;
+	    			clientes_grupo[key].erase(erase_index + clientes_grupo[key].begin());
+	    		}
+
+	    		cout << "El GrupoID " << key.grupoid << " tiene ahora " << clientes_grupo[key].size() << endl;
+
+	    		clientes_conectados--;
+
+	    		cout << "Hay en total " << clientes_conectados << " clientes conectados en el sistema." << endl;
+
+	 			//assert(erase_find);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 				    					}
 				    				}
 				    			}
@@ -316,7 +499,7 @@ int main (int argc, char *argv[])
 				    			struct mensaje_reconocimiento reconocimiento;
 				    			memcpy(&reconocimiento, &buffer_mensaje[1], sizeof(struct mensaje_reconocimiento));
 
-				    			printf("Recibida reconocimiento de ID %d a ID %d. GrupoID: %d\n", data_client->socketfd, reconocimiento.cliente_id_destino, data_client->grupoid);
+				    			printf("Recibido reconocimiento de ID %d a ID %d. GrupoID: %d\n", data_client->socketfd, reconocimiento.cliente_id_destino, data_client->grupoid);
 
 				    			struct grupo_key key;
 				    			key.grupoid = data_client->grupoid;

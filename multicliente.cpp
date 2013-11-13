@@ -739,6 +739,8 @@ int main(int argc, const char* argv[])
 		//cout << "Hilo " << i << " terminado." << endl;
 	}
 	cout << "Prueba finalizada." << endl;
+
+	while(true);
 	return 0;
 }
 
