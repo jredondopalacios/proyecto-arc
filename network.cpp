@@ -43,7 +43,15 @@ int async_write(struct epoll_data_client* data, void* buffer, int length)
 {
     memcpy(data->write_buffer + data->write_count, buffer, length);
     data->write_count += length;
-    return async_write_delay(data);
+    
+    int rc = async_write_delay(data);
+
+    if(rc < 0)
+    {
+        cout << "Error enviando a ClienteID: " << data->socketfd << endl;
+    }
+
+    return rc;
 }
 
 int async_write_delay(struct epoll_data_client* data)
@@ -63,7 +71,7 @@ int async_write_delay(struct epoll_data_client* data)
             {
                 return 0;
             }
-            //perror("async_write_delay->send()");
+            perror("async_write_delay->send()");
             return -1;
         }
 

@@ -30,7 +30,7 @@
 #include "network.h"
 
 #define SERVER_PORT  12345
-#define MAXEVENTS	 100000
+#define MAXEVENTS	 300000
 
 #define TRUE             1
 #define FALSE            0
@@ -264,7 +264,7 @@ struct epoll_data_client * data_client = (struct epoll_data_client *) epoll_even
 	    		{
 	    			if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
 	    			{
-	    				cout << "Enviando información de desconexión sobre " << data_client->socketfd << " a " << clientes[i] << endl;
+	    				cout << "Enviando información de desconexión sobre " << data_client->socketfd << " a " << ((struct epoll_data_client *)clientes[i])->socketfd << endl;
 	    				async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_desconexion));
 	    			}
 	    			else
@@ -278,7 +278,7 @@ struct epoll_data_client * data_client = (struct epoll_data_client *) epoll_even
 
 	    		if (erase_find)
 	    		{
-	    			cout << "Borrada ID " << data_client->socketfd << " del vector de clientes de grupo." << endl;
+	    			cout << "Borrada ClienteID: " << data_client->socketfd << " del vector de clientes de grupo." << endl;
 	    			clientes_grupo[key].erase(erase_index + clientes_grupo[key].begin());
 	    		}
 
