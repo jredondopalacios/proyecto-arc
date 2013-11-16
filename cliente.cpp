@@ -21,8 +21,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 #include "mensajes.h"
+
+#define IMG_PATH "image.jpg"
 
 using namespace std;
 
@@ -37,6 +41,23 @@ msec_t time_ms(void)
 
 int main(int argc, const char * argv[])
 {
+	int img_width, img_height;
+
+	SDL_Init(SDL_INIT_EVERYTHING);
+
+	SDL_Window *window = NULL;
+	SDL_Renderer *renderer = NULL;
+	SDL_Texture *image = NULL;
+
+	window = SDL_CreateWindow("CLIENTE GUI", 200, 150, 800, 600, 0);
+	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	image = IMG_LoadTexture(renderer, IMG_PATH);
+
+	if(image == NULL)
+		cout << "Error cargando imágen..." << endl;
+	SDL_QueryTexture(image, NULL, NULL, &img_width, &img_height);
+
+	SDL_Rect texr; texr.x = -200; texr.y = -100; texr.w = img_width; texr.h = img_height;
 
     int                     sock, rc; 
     uint32_t secuencia = 0;
@@ -62,7 +83,7 @@ int main(int argc, const char * argv[])
     
 	dir.sin_family=PF_INET;
 	dir.sin_port=htons(12345);
-    inet_aton(argv[1],&dir.sin_addr);
+    inet_aton("127.0.0.1",&dir.sin_addr);
 
 	if (connect(sock, (struct sockaddr *)&dir, sizeof(struct sockaddr_in))<0)
 	{
@@ -114,7 +135,7 @@ int main(int argc, const char * argv[])
 	miPosicion.cliente_id_origen = cliente_id;
 	miPosicion.posicion_x = 100;
 	miPosicion.posicion_y = 150;
-	miPosicion.posicion_z = -200;
+	miPosicion.posicion_z = 30;
 
 	int64_t ticker = 0;
 
@@ -137,6 +158,75 @@ int main(int argc, const char * argv[])
 
 	while(1)
 	{
+
+		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+		SDL_Rect rectangle;
+
+		
+
+		SDL_Event event;
+		if( SDL_PollEvent(&event))
+		{
+			if(event.type == SDL_QUIT)
+				break;
+			if(event.type == SDL_KEYDOWN)
+			{
+				switch(event.key.keysym.sym)
+				{
+					case SDLK_DOWN:
+					{
+						if(miPosicion.posicion_y < 600)
+							miPosicion.posicion_y += 3;
+						//if(((miPosicion.posicion_y - texr.y) > 400) && (texr.y < texr.h - 600))
+							//texr.y-=5;
+						break;
+					}
+					case SDLK_UP:
+					{
+						if(miPosicion.posicion_y > 0)
+							miPosicion.posicion_y -= 3;
+						//if(((miPosicion.posicion_y - texr.y) < 200) && (texr.y > 0))
+							//texr.y+=5;
+						break;
+					}
+					case SDLK_RIGHT:
+					{
+						if(miPosicion.posicion_x < 800)
+							miPosicion.posicion_x+=3;
+						//if(((miPosicion.posicion_x - texr.x) > 400) && (texr.x < texr.w - 800))
+							//texr.x-=5;
+						break;
+					}
+					case SDLK_LEFT:
+					{
+						if(miPosicion.posicion_x > 0)
+							miPosicion.posicion_x-=3;
+						//if(((miPosicion.posicion_x - texr.x) < 200) && (texr.x > 0))
+							//texr.x+=5;
+						break;
+					}
+				}
+			}
+		}
+
+		cout << "Posicion X: " << miPosicion.posicion_x << "; Posicion Y: " << miPosicion.posicion_y << endl;
+
+			// clear the screen
+		SDL_RenderClear(renderer);
+		// copy the texture to the rendering context
+		SDL_RenderCopy(renderer, image, NULL, &texr);
+
+		rectangle.x = miPosicion.posicion_x - texr.x;
+		rectangle.y = miPosicion.posicion_y - texr.y;
+		rectangle.w = 5;
+		rectangle.h = 5;
+		SDL_RenderFillRect(renderer, &rectangle);
+
+		// flip the backbuffer
+		// this means that everything that we prepared behind the screens is actually shown
+		SDL_RenderPresent(renderer);
+
+
 		memcpy(&fd_copy, &fd, sizeof(fd));
 		n = select(sock + 1, &fd_copy, NULL, NULL, &timeout);
 

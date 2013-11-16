@@ -736,8 +736,11 @@ int cliente_thread(int grupo, string nombre_fichero)
 	cout << "El Hilo con ID " << cliente_id << " ha terminado." << endl;
 	cout << "Tiempo medio por ciclo: " << ((final - inicio)  / (1000 * (secuencia + 1.0))) << " segundos." << endl;
 	
+	report_mutex.lock();
+	sleep(1);
     shutdown(server_socket, SHUT_WR);
 	close(server_socket);
+	report_mutex.unlock();
 
 	return 0;
 }
