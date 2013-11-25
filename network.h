@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <fcntl.h>
+#include <assert.h>
 
 #include "mensajes.h"
 
@@ -32,7 +33,7 @@ struct epoll_data_client {
 	char 			write_buffer[INITIAL_BUFFER_SIZE];
 	char 			read_buffer[INITIAL_BUFFER_SIZE];
 	char			*read_buffer_ptr, *write_buffer_ptr;
-	int 			read_count, write_count, read_count_total;
+	int 			read_count, read_count_total, write_count;
 	bool			tipo_mensaje_read;
 };
 

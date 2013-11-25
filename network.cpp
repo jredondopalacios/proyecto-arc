@@ -63,6 +63,8 @@ int async_write_delay(struct epoll_data_client* data)
 
     do
     {
+        cout << "Van a escribirse " << data->write_count << endl;
+        assert(data->write_count > 0);
         rc = send(data->socketfd, data->write_buffer, data->write_count, MSG_NOSIGNAL);
 
         if(rc < 0)
@@ -80,10 +82,11 @@ int async_write_delay(struct epoll_data_client* data)
             return 0;
         }
 
+        cout << "Escritos " << rc << " bytes. Quedan " << data->write_count - rc << " bytes." << endl;
+
         data->write_count = data->write_count - rc;
-        //cout << data->write_count << endl << flush;
         memcpy(data->write_buffer, data->write_buffer + rc, data->write_count);
-    } while(rc > 0);
+    } while(rc > 0 && data->write_count > 0);
 
     return rc;
 }
