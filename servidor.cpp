@@ -84,7 +84,7 @@ void worker_thread(int epollfd)
 		for (int i = 0; i < epoll_n; i++)
 		{
 
-		    cout << "---------------------------------" << endl;
+		    //cout << "---------------------------------" << endl;
 		    if ((epoll_events[i].events & EPOLLRDHUP) || (epoll_events[i].events & EPOLLHUP) || (epoll_events[i].events & EPOLLERR))
 		    {
 		    	struct epoll_data_client * data_client = (struct epoll_data_client *) epoll_events[i].data.ptr;
@@ -242,13 +242,13 @@ void worker_thread(int epollfd)
 						case MENSAJE_POSICION:
 						{
 #ifdef _DEBUG_
-							printf("Recibida posicion de ID: %d. GrupoID: %d\n", data_client->socketfd, data_client->grupoid);
+							//printf("Recibida posicion de ID: %d. GrupoID: %d\n", data_client->socketfd, data_client->grupoid);
 #endif
 							struct grupo_key key;
 							key.grupoid = data_client->grupoid;
 							vector_cliente clientes = clientes_grupo[key];
 
-							cout << "Reenviando a " << clientes.size() << " clientes..." << endl;
+							//cout << "Reenviando a " << clientes.size() << " clientes..." << endl;
 
 							for(uint i = 0; i < clientes.size(); i++)
 							{
@@ -319,7 +319,7 @@ void worker_thread(int epollfd)
 							struct mensaje_reconocimiento reconocimiento;
 							memcpy(&reconocimiento, &buffer_mensaje[1], sizeof(struct mensaje_reconocimiento));
 
-							printf("Recibido reconocimiento de ID %d a ID %d. GrupoID: %d\n", data_client->socketfd, reconocimiento.cliente_id_destino, data_client->grupoid);
+							//printf("Recibido reconocimiento de ID %d a ID %d. GrupoID: %d\n", data_client->socketfd, reconocimiento.cliente_id_destino, data_client->grupoid);
 
 							struct grupo_key key;
 							key.grupoid = data_client->grupoid;
