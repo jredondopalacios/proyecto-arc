@@ -45,7 +45,7 @@
 #include "mensajes.h"
 
 #define GRUPO_SIZE 		10
-#define GRUPO_COUNT 	500
+#define GRUPO_COUNT 	1000
 #define THREAD_POOL		4
 #define CICLOS			100
 #define MAXEVENTS		399999
