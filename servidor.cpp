@@ -30,7 +30,7 @@
 #include "network.h"
 
 #define SERVER_PORT  12345
-#define MAXEVENTS	 300000
+#define MAXEVENTS	 30000
 
 #define TRUE             1
 #define FALSE            0
@@ -136,7 +136,7 @@ void worker_thread(int epollfd)
 
 	    		cout << "Hay en total " << clientes_conectados << " clientes conectados en el sistema." << endl;
 
-	    		break;
+	    		continue;
 		    }
 
 		    if (epoll_events[i].events & EPOLLOUT)
@@ -151,7 +151,7 @@ void worker_thread(int epollfd)
 		    	do
 		    	{
 			    	mensaje_t tipo_mensaje;
-			    	char buffer_mensaje[40];
+			    	char buffer_mensaje[400];
 			    	struct epoll_data_client * data_client = (struct epoll_data_client *) epoll_events[i].data.ptr;
 
 
@@ -248,13 +248,20 @@ void worker_thread(int epollfd)
 							key.grupoid = data_client->grupoid;
 							vector_cliente clientes = clientes_grupo[key];
 
+							struct mensaje_posicion posicion;
+							memcpy(&posicion, &buffer_mensaje[1], sizeof(posicion));
+
+							//posicion = (struct mensaje_posicion) (* (&buffer_mensaje))
+
+							assert(posicion.cliente_id_origen < 11000);
 							//cout << "Reenviando a " << clientes.size() << " clientes..." << endl;
 
 							for(uint i = 0; i < clientes.size(); i++)
 							{
 								if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
 								{
-									if (async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion)) < 0)
+									send(clientes[i]->socketfd, buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion), MSG_NOSIGNAL | MSG_WAITALL);
+									/*if (async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion)) < 0)
 									{
 
 										cout << "Error enviando a ID " << ((struct epoll_data_client *) clientes[i])->socketfd << endl;
@@ -308,7 +315,7 @@ void worker_thread(int epollfd)
 
 										cout << "Hay en total " << clientes_conectados << " clientes conectados en el sistema." << endl;
 
-									}
+									}*/
 								}
 							}
 							break;
@@ -324,6 +331,8 @@ void worker_thread(int epollfd)
 							struct grupo_key key;
 							key.grupoid = data_client->grupoid;
 							vector_cliente clientes = clientes_grupo[key];
+
+							assert(reconocimiento.cliente_id_destino < 11000);
 
 							for(uint i = 0; i < clientes.size(); i++)
 							{

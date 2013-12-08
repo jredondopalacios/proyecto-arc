@@ -60,6 +60,8 @@ typedef struct _client_data {
 
 typedef int64_t msec_t;
 
+
+
 msec_t time_ms(void)
 {
     struct timeval tv;
@@ -69,6 +71,8 @@ msec_t time_ms(void)
 
 using namespace std;
 
+mutex report_mutex;
+
 msec_t inicio_prueba;
 
 void client_thread(int epoll_fd)
@@ -77,7 +81,7 @@ void client_thread(int epoll_fd)
 
 	struct epoll_event ev[MAXEVENTS];
 
-	uint8_t buffer[40];
+	uint8_t buffer[400];
 	client_data* data;
 	uint8_t tipo_mensaje;
 	mensaje_posicion posicion;
@@ -105,7 +109,13 @@ void client_thread(int epoll_fd)
 						reconocimiento.cliente_id_origen = data->id;
 						reconocimiento.cliente_id_destino = posicion.cliente_id_origen;
 
-						//cout << "Reenviando reconocimiento a " << posicion.cliente_id_origen << endl;
+						cout << posicion.cliente_id_origen << endl;
+						assert(posicion.cliente_id_origen < 11000);
+
+
+						report_mutex.lock();
+						cout << "ID: " << data->id << " Reenviando reconocimiento a " << posicion.cliente_id_origen << endl;
+						report_mutex.unlock();
 
 						buffer[0] = MENSAJE_RECONOCIMIENTO;
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
@@ -114,7 +124,11 @@ void client_thread(int epoll_fd)
 					}
 				case MENSAJE_RECONOCIMIENTO:
 					{
+						report_mutex.lock();
 						data->ack_pendiente -= 1;
+						cout << "[ID" << data->id << "] Recibido ACK-" << data->secuencia << ". Quedan " << data->ack_pendiente << endl;
+						report_mutex.unlock();
+						recv(data->socket, &reconocimiento, sizeof(reconocimiento), 0);
 						if(data->ack_pendiente == 0)
 						{
 							data->ack_pendiente = GRUPO_SIZE - 1;
@@ -136,6 +150,7 @@ void client_thread(int epoll_fd)
 							//cout << "Empezando nuevo ciclo. ID: " << data->id << endl;
 
 						}
+
 						break;
 					}
 				}
@@ -200,7 +215,7 @@ int main(int argc, char** argv)
 			memcpy(&buffer[1], &nueva_conexion, sizeof(mensaje_conexion));
 
 			send(server_socket, buffer, sizeof(uint8_t) + sizeof(mensaje_conexion),0);
-			recv(server_socket, buffer, sizeof(uint8_t) + sizeof(mensaje_conexion_satisfactoria),0);
+			recv(server_socket, buffer, sizeof(uint8_t) + sizeof(conexion_respuesta),0);
 
 			memcpy(&conexion_respuesta, &buffer[1], sizeof(conexion_respuesta));
 

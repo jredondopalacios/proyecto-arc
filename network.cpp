@@ -43,7 +43,7 @@ int async_write(struct epoll_data_client* data, void* buffer, int length)
 {
     if(data->write_count == 0)
     {
-        int rc = send(data->socketfd, buffer, length, MSG_NOSIGNAL);
+        int rc = send(data->socketfd, buffer, length, MSG_NOSIGNAL | MSG_WAITALL);
         return rc;
     }
     memcpy(data->write_buffer + data->write_count, buffer, length);

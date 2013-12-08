@@ -41,13 +41,13 @@ struct mensaje_posicion {
 	int16_t posicion_y;
 	int16_t posicion_z;
 	uint32_t numero_secuencia;
-} __attribute__((packed));
+}; //__attribute__((packed));
 
 struct mensaje_reconocimiento {
 	clienteid_t cliente_id_origen;
 	clienteid_t cliente_id_destino;
 	uint32_t numero_secuencia;
-} __attribute__((packed));
+}; //__attribute__((packed));
 
 struct mensaje_nombre_request {
 	clienteid_t cliente_id_origen;
