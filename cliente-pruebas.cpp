@@ -45,7 +45,7 @@
 #include "mensajes.h"
 
 #define GRUPO_SIZE 		10
-#define GRUPO_COUNT 	1000
+#define GRUPO_COUNT 	10
 #define THREAD_POOL		4
 #define CICLOS			100
 #define MAXEVENTS		399999
@@ -136,7 +136,10 @@ void client_thread(int epoll_fd)
 
 							if(data->secuencia == CICLOS)
 							{
-								cout << "ClienteID " << data->id << " ha terminado con tiempo: " << (time_ms() - inicio_prueba) / 1000 << endl;
+								int tiempo = (time_ms() - inicio_prueba) / 1000;
+								report_mutex.lock();
+								cout << tiempo << endl;
+								report_mutex.unlock();
 								break;
 							}
 
@@ -173,7 +176,7 @@ int main(int argc, char** argv)
 	struct sockaddr_in      dir;
 	dir.sin_family = PF_INET;
 	dir.sin_port = htons(12345);
-	inet_aton("127.0.0.1",&dir.sin_addr);
+	inet_aton("192.168.1.138",&dir.sin_addr);
 
 	int server_socket;
 

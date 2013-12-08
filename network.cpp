@@ -41,15 +41,17 @@ int aio_socket_escucha(int puerto) {
 
 int async_write(struct epoll_data_client* data, void* buffer, int length)
 {
-    if(data->write_count == 0)
-    {
-        int rc = send(data->socketfd, buffer, length, MSG_NOSIGNAL | MSG_WAITALL);
-        return rc;
-    }
-    memcpy(data->write_buffer + data->write_count, buffer, length);
-    data->write_count += length;
+    int rc = 0;
+    //if(data->write_count == 0)
+    //{
+        rc = send(data->socketfd, buffer, length, MSG_NOSIGNAL);
+      //  if(rc == length)
+            return rc;
+    //}
+    memcpy(data->write_buffer + data->write_count, buffer + rc, length - rc);
+    data->write_count += length - rc;
     
-    int rc = async_write_delay(data);
+    rc = async_write_delay(data);
 
     if(rc < 0)
     {

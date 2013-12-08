@@ -36,7 +36,7 @@
 #define FALSE            0
 
 #define MAX_GRUPOS 10000
-#define THREAD_POOL 4
+#define THREAD_POOL 1024
 
 
 #define _DEBUG_
@@ -260,8 +260,8 @@ void worker_thread(int epollfd)
 							{
 								if(((struct epoll_data_client *) clientes[i])->socketfd != data_client->socketfd)
 								{
-									send(clientes[i]->socketfd, buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion), MSG_NOSIGNAL | MSG_WAITALL);
-									/*if (async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion)) < 0)
+									//send(clientes[i]->socketfd, buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion), MSG_NOSIGNAL | MSG_WAITALL);
+									if (async_write(clientes[i], buffer_mensaje, sizeof(mensaje_t) + sizeof(struct mensaje_posicion)) < 0)
 									{
 
 										cout << "Error enviando a ID " << ((struct epoll_data_client *) clientes[i])->socketfd << endl;
@@ -315,7 +315,7 @@ void worker_thread(int epollfd)
 
 										cout << "Hay en total " << clientes_conectados << " clientes conectados en el sistema." << endl;
 
-									}*/
+									}
 								}
 							}
 							break;
@@ -449,7 +449,7 @@ int main (int argc, char *argv[])
 				    	epoll_event client_event;
 				    	epoll_data_client *data = (epoll_data_client * ) malloc(sizeof(struct epoll_data_client));
 				    	init_epoll_data(new_client_sd, data);
-				    	client_event.events = EPOLLOUT | EPOLLIN | EPOLLET| EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+				    	client_event.events = /*EPOLLOUT|*/ EPOLLIN | EPOLLET| EPOLLRDHUP | EPOLLHUP | EPOLLERR;
 				    	client_event.data.ptr = data;
 #ifdef _DEBUG_
 			    		cout << "Nuevo cliente en socket: " << new_client_sd << endl <<flush;
