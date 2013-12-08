@@ -109,13 +109,13 @@ void client_thread(int epoll_fd)
 						reconocimiento.cliente_id_origen = data->id;
 						reconocimiento.cliente_id_destino = posicion.cliente_id_origen;
 
-						cout << posicion.cliente_id_origen << endl;
+						//cout << posicion.cliente_id_origen << endl;
 						assert(posicion.cliente_id_origen < 11000);
 
 
-						report_mutex.lock();
+						/*report_mutex.lock();
 						cout << "ID: " << data->id << " Reenviando reconocimiento a " << posicion.cliente_id_origen << endl;
-						report_mutex.unlock();
+						report_mutex.unlock();*/
 
 						buffer[0] = MENSAJE_RECONOCIMIENTO;
 						memcpy(&buffer[1], &reconocimiento, sizeof(reconocimiento));
@@ -124,10 +124,10 @@ void client_thread(int epoll_fd)
 					}
 				case MENSAJE_RECONOCIMIENTO:
 					{
-						report_mutex.lock();
+						//report_mutex.lock();
 						data->ack_pendiente -= 1;
-						cout << "[ID" << data->id << "] Recibido ACK-" << data->secuencia << ". Quedan " << data->ack_pendiente << endl;
-						report_mutex.unlock();
+						//cout << "[ID" << data->id << "] Recibido ACK-" << data->secuencia << ". Quedan " << data->ack_pendiente << endl;
+						//report_mutex.unlock();
 						recv(data->socket, &reconocimiento, sizeof(reconocimiento), 0);
 						if(data->ack_pendiente == 0)
 						{
